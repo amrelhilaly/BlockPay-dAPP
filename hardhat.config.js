@@ -1,0 +1,11 @@
+require("@nomiclabs/hardhat-ethers");
+
+module.exports = {
+  solidity: "0.8.20",
+  networks: {
+    gethPrivate: {
+      url: "http://127.0.0.1:8546"
+      // No need to add `accounts` if Geth dev mode is auto-unlocked
+    }
+  }
+};

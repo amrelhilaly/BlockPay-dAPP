@@ -15,6 +15,7 @@
     "hardhat": "^2.23.0"
   },
   "dependencies": {
-    "blockpay-dapp": "file:"
+    "blockpay-dapp": "file:",
+    "expo-cli": "^6.3.12"
   }
 }

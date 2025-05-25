@@ -1,12 +1,12 @@
-// Import the functions you need from the SDKs you need
+// firebase/firebase.ts
+
+// 0) Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getFirestore } from "firebase/firestore";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { getAuth } from "firebase/auth";           // ← import Auth
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// 1) Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyDhx_OI0jec7o5iJo3eGhVSxyDiBHurs3s",
   authDomain: "blockpay-a63db.firebaseapp.com",
@@ -17,8 +17,10 @@ const firebaseConfig = {
   measurementId: "G-WJXCTL8G6W"
 };
 
-// Initialize Firebase
+// 2) Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app); // Initialize Firestore
-const analytics = getAnalytics(app);
-export { db, analytics };
+
+// 3) Initialize and export each service
+export const db        = getFirestore(app);
+export const analytics = getAnalytics(app);
+export const auth      = getAuth(app);             // ← export Auth

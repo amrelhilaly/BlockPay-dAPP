@@ -4,7 +4,7 @@
     "slug": "blockpay-mobileDev",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/blockpayicon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -13,7 +13,12 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        }
     },
     "android": {
       "adaptiveIcon": {
@@ -26,4 +31,4 @@
       "favicon": "./assets/favicon.png"
     }
   }
-}
+}}

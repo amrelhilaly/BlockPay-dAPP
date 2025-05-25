@@ -1,56 +1,77 @@
-import "@walletconnect/react-native-compat";
+// App.tsx
+// 0) Shim out BackHandler.removeEventListener without TS errors
+import { BackHandler } from "react-native";
+const BH = BackHandler as any;
+if (typeof BH.removeEventListener !== "function") {
+  BH.removeEventListener = (_: string, __: any) => {
+    // no-op
+  };
+}
+
+// 1) Clear old WalletConnect session keys before anything else
+import AsyncStorage from "@react-native-async-storage/async-storage";
+(async () => {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const wcKeys = keys.filter(k => k.startsWith("wc@") || k.startsWith("walletconnect"));
+    if (wcKeys.length) {
+      await AsyncStorage.multiRemove(wcKeys);
+      console.log("✅ Cleared old WalletConnect keys:", wcKeys);
+    }
+  } catch (e) {
+    console.warn("⚠️ Failed to clear old WalletConnect keys:", e);
+  }
+})();
+
+// 2) Polyfills — these MUST come next
+import "react-native-get-random-values";     // secure RNG for ethers
+import "@ethersproject/shims";               // ethers v6 shims
+import "@walletconnect/react-native-compat"; // WalletConnect RN compat
+
+// 3) Other imports
 import React from "react";
+import { LogBox } from "react-native";
 import { AppKit, createAppKit, defaultConfig } from "@reown/appkit-ethers-react-native";
 import { NavigationContainer } from "@react-navigation/native";
-import StackNavigator from "./navigation/Stack"; // ← assumes you created this
-import { LogBox } from "react-native";
+import StackNavigator from "./navigation/Stack";
 
-// Ignore certain warnings from WalletConnect packages if needed
-LogBox.ignoreLogs([
-  "Require cycle:",
-]);
+// 4) Silence any WalletConnect warnings you don’t care about
+LogBox.ignoreLogs(["Require cycle:"]);
 
-// Your WalletConnect Project ID
+// 5) Your WalletConnect Project & AppKit setup
 const projectId = "15a77aeafbdcbd4b84fcb166fde26b37";
 
-// Metadata
 const metadata = {
-  name: "BlockPay",
+  name:        "BlockPay",
   description: "Blockchain-powered payments with WalletConnect",
-  url: "https://blockpay.app",
-  icons: ["https://blockpay.app/icon.png"],
-  redirect: {
-    native: "blockpay://",
-  },
+  url:         "https://blockpay.app",
+  icons:       ["https://blockpay.app/icon.png"],
+  redirect:    { native: "blockpay://" },
 };
 
-// AppKit config
 const config = defaultConfig({ metadata });
 
-// Geth chain
 const gethPrivateChain = {
-  chainId: 1337,
-  name: "Geth Devnet",
-  currency: "ETH",
-  explorerUrl: "",
-  rpcUrl: "http://192.168.100.129:8546",
+  chainId:    1337,
+  name:       "Geth Devnet",
+  currency:   "ETH",
+  explorerUrl:"",
+  rpcUrl:     "http://192.168.100.129:8546",
 };
 
-// Register AppKit
 createAppKit({
   projectId,
-  chains: [gethPrivateChain],
+  chains:          [gethPrivateChain],
   config,
   enableAnalytics: false,
 });
 
+// 6) The App component
 export default function App() {
   return (
-    <>
+    <NavigationContainer>
       <AppKit />
-      <NavigationContainer>
-        <StackNavigator />
-      </NavigationContainer>
-    </>
+      <StackNavigator />
+    </NavigationContainer>
   );
 }

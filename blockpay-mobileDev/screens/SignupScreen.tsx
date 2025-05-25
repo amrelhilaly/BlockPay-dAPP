@@ -1,7 +1,17 @@
+// SignupScreen.tsx
+
 import React, { useState } from "react";
-import { View, TextInput, Button, StyleSheet, Text, Alert } from "react-native";
-import { collection, addDoc } from "firebase/firestore";
-import { db } from "../firebase/firebase";
+import {
+  View,
+  TextInput,
+  Button,
+  StyleSheet,
+  Text,
+  Alert
+} from "react-native";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { setDoc, doc } from "firebase/firestore";
+import { auth, db } from "../firebase/firebase";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 type RootStackParamList = {
@@ -12,33 +22,41 @@ type RootStackParamList = {
 type Props = NativeStackScreenProps<RootStackParamList, "Signup">;
 
 export default function SignupScreen({ navigation }: Props) {
-  const [user, setUser] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-  });
-  const [status, setStatus] = useState("");
-
-  const handleChange = (key: keyof typeof user, value: string) => {
-    setUser({ ...user, [key]: value });
-  };
+  const [firstName, setFirstName] = useState("");
+  const [lastName,  setLastName]  = useState("");
+  const [email,     setEmail]     = useState("");
+  const [phone,     setPhone]     = useState("");
+  const [password,  setPassword]  = useState("");
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState<string | null>(null);
 
   const handleSubmit = async () => {
-    if (!user.firstName || !user.lastName || !user.email) {
+    if (!firstName || !lastName || !email || !password) {
       Alert.alert("Please fill in all required fields.");
       return;
     }
-
+    setLoading(true);
+    setError(null);
     try {
-      await addDoc(collection(db, "users"), {
-        ...user,
+      // 1) Create user in Firebase Auth
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+
+      // 2) Save profile data in Firestore under users/{uid}
+      await setDoc(doc(db, "users", cred.user.uid), {
+        firstName,
+        lastName,
+        email,
+        phone: phone || null,
         createdAt: new Date(),
       });
-      navigation.navigate("ConnectWallet");
-    } catch (err) {
-      console.error(err);
-      setStatus("❌ Failed to save user.");
+
+      // 3) Go to wallet connection
+      navigation.replace("ConnectWallet");
+    } catch (err: any) {
+      console.error("Signup failed", err);
+      setError(err.message || "Failed to create account.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -47,47 +65,58 @@ export default function SignupScreen({ navigation }: Props) {
       <TextInput
         placeholder="First Name"
         style={styles.input}
-        onChangeText={(text) => handleChange("firstName", text)}
-        value={user.firstName}
+        value={firstName}
+        onChangeText={setFirstName}
       />
       <TextInput
         placeholder="Last Name"
         style={styles.input}
-        onChangeText={(text) => handleChange("lastName", text)}
-        value={user.lastName}
+        value={lastName}
+        onChangeText={setLastName}
       />
       <TextInput
         placeholder="Email"
         style={styles.input}
         keyboardType="email-address"
-        onChangeText={(text) => handleChange("email", text)}
-        value={user.email}
+        autoCapitalize="none"
+        value={email}
+        onChangeText={setEmail}
+      />
+      <TextInput
+        placeholder="Password"
+        style={styles.input}
+        secureTextEntry
+        value={password}
+        onChangeText={setPassword}
       />
       <TextInput
         placeholder="Phone (optional)"
         style={styles.input}
         keyboardType="phone-pad"
-        onChangeText={(text) => handleChange("phone", text)}
-        value={user.phone}
+        value={phone}
+        onChangeText={setPhone}
       />
-      <Button title="Next → Connect Wallet" onPress={handleSubmit} />
-      {status ? <Text style={styles.status}>{status}</Text> : null}
+
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+
+      <Button
+        title={loading ? "Signing Up..." : "Sign Up & Connect Wallet"}
+        onPress={handleSubmit}
+        disabled={loading}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 20 },
+  container: {
+    flex: 1, justifyContent: "center", padding: 20
+  },
   input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    padding: 12,
-    marginBottom: 12,
-    borderRadius: 6,
+    borderWidth: 1, borderColor: "#ccc",
+    padding: 12, marginBottom: 12, borderRadius: 6
   },
-  status: {
-    marginTop: 10,
-    textAlign: "center",
-    color: "red",
-  },
+  error: {
+    color: "red", textAlign: "center", marginBottom: 12
+  }
 });

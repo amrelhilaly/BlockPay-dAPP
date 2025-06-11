@@ -1,35 +1,61 @@
+// src/components/NavBar.tsx
+
 import React from 'react';
-import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 type Tab = {
-  name: 'Home' | 'Wallets' | 'History' | 'Profile';
-  icon: string;
-  route: string;
+  routeName: string;
+  activeIcon: React.ComponentProps<typeof Ionicons>['name'];
+  inactiveIcon: React.ComponentProps<typeof Ionicons>['name'];
 };
 
 const TABS: Tab[] = [
-  { name: 'Home', icon: 'home', route: 'Dashboard' },
-  { name: 'Wallets', icon: 'wallet', route: 'ManageWallets' },
-  { name: 'History', icon: 'history', route: 'History' },
-  { name: 'Profile', icon: 'user-circle', route: 'Profile' },
+  {
+    routeName: 'Dashboard',
+    activeIcon: 'home',
+    inactiveIcon: 'home-outline',
+  },
+  {
+    routeName: 'ManageWallets',
+    activeIcon: 'wallet',
+    inactiveIcon: 'wallet-outline',
+  },
+  {
+    routeName: 'History',
+    activeIcon: 'time',
+    inactiveIcon: 'time-outline',
+  },
+  {
+    routeName: 'Profile',
+    activeIcon: 'person',
+    inactiveIcon: 'person-outline',
+  },
 ];
 
 export default function NavBar() {
-  const nav = useNavigation();
+  const navigation = useNavigation();
+  const route = useRoute<RouteProp<Record<string, object | undefined>, string>>();
+
   return (
     <View style={styles.container}>
-      {TABS.map((tab) => (
-        <TouchableOpacity
-          key={tab.name}
-          style={styles.tab}
-          onPress={() => nav.navigate(tab.route as never)}
-        >
-          <FontAwesome5 name={tab.icon as any} size={20} color="#666" />
-          <Text style={styles.label}>{tab.name}</Text>
-        </TouchableOpacity>
-      ))}
+      {TABS.map(({ routeName, activeIcon, inactiveIcon }) => {
+        const focused = route.name === routeName;
+        return (
+          <TouchableOpacity
+            key={routeName}
+            style={styles.tab}
+            onPress={() => navigation.navigate(routeName as never)}
+          >
+            <Ionicons
+              name={focused ? activeIcon : inactiveIcon}
+              size={24}
+              color={focused ? '#000' : '#666'}
+            />
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
@@ -39,16 +65,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderTopWidth: 1,
     borderColor: '#ddd',
-    paddingVertical: 8,
     backgroundColor: '#fff',
   },
   tab: {
     flex: 1,
     alignItems: 'center',
-  },
-  label: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
+    paddingVertical: 8,
   },
 });

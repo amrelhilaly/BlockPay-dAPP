@@ -19,7 +19,7 @@
           "NSAllowsArbitraryLoads": true,
           "NSAllowsLocalNetworking": true
         }
-    },
+    }},
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -31,4 +31,4 @@
       "favicon": "./assets/favicon.png"
     }
   }
-}}
+}

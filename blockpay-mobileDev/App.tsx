@@ -1,4 +1,5 @@
 // App.tsx
+
 // 0) Shim out BackHandler.removeEventListener without TS errors
 import { BackHandler } from "react-native";
 const BH = BackHandler as any;
@@ -28,17 +29,21 @@ import "react-native-get-random-values";     // secure RNG for ethers
 import "@ethersproject/shims";               // ethers v6 shims
 import "@walletconnect/react-native-compat"; // WalletConnect RN compat
 
-// 3) Other imports
+// 3) Font loading
 import React from "react";
+import AppLoading from 'expo-app-loading';
+import { useFonts, Manrope_500Medium, Manrope_700Bold } from '@expo-google-fonts/manrope';
+
+// 4) Other imports
 import { LogBox } from "react-native";
 import { AppKit, createAppKit, defaultConfig } from "@reown/appkit-ethers-react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import StackNavigator from "./navigation/Stack";
 
-// 4) Silence any WalletConnect warnings you don’t care about
+// 5) Silence any WalletConnect warnings you don’t care about
 LogBox.ignoreLogs(["Require cycle:"]);
 
-// 5) Your WalletConnect Project & AppKit setup
+// 6) Your WalletConnect Project & AppKit setup
 const projectId = "15a77aeafbdcbd4b84fcb166fde26b37";
 
 const metadata = {
@@ -55,7 +60,7 @@ const gethPrivateChain = {
   chainId:    1337,
   name:       "Geth Devnet",
   currency:   "ETH",
-  explorerUrl:"",
+  explorerUrl: "",
   rpcUrl:     "http://192.168.100.129:8546",
 };
 
@@ -66,8 +71,14 @@ createAppKit({
   enableAnalytics: false,
 });
 
-// 6) The App component
+// 7) The App component
 export default function App() {
+  // Load custom fonts
+  const [fontsLoaded] = useFonts({ Manrope_500Medium, Manrope_700Bold });
+  if (!fontsLoaded) {
+    return <AppLoading />;
+  }
+
   return (
     <NavigationContainer>
       <AppKit />

@@ -27,10 +27,21 @@ import type { RootStackParamList } from '../navigation/Stack';
 import WalletTile from '../components/WalletTile';
 import NavBar     from '../components/Navbar';
 
+// --- TYPES ---
 type NavProp       = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
 type OtherWallet   = { type: 'Ethereum' | 'Bitcoin'; address: string; balance: string };
 type Transaction   = { type: 'Ethereum' | 'Bitcoin'; description: string; amount: string };
 type SectionItem   = OtherWallet | Transaction;
+
+// --- DUMMY DATA ---
+const otherWallets: OtherWallet[] = [
+  { type: 'Ethereum', address: '0x42…789', balance: '0.5 ETH' },
+  { type: 'Bitcoin',  address: '0x1A…234', balance: '0.1 BTC' },
+];
+const transactions: Transaction[] = [
+  { type: 'Ethereum', description: 'Received from @blockchainlover', amount: '+0.5 ETH' },
+  { type: 'Bitcoin',  description: 'Sent to @digitalcurrency',      amount: '-0.1 BTC' },
+];
 
 export default function Dashboard() {
   const insets       = useSafeAreaInsets();
@@ -45,17 +56,16 @@ export default function Dashboard() {
   const [balance,       setBalance]       = useState<string>('0');
   const [error,         setError]         = useState<string>('');
 
-  // dummy data
-  const otherWallets: OtherWallet[] = [
-    { type: 'Ethereum', address: '0x42…789', balance: '0.5 ETH' },
-    { type: 'Bitcoin',  address: '0x1A…234', balance: '0.1 BTC' },
-  ];
-  const transactions: Transaction[] = [
-    { type: 'Ethereum', description: 'Received from @blockchainlover', amount: '+0.5 ETH' },
-    { type: 'Bitcoin',  description: 'Sent to @digitalcurrency',      amount: '-0.1 BTC' },
-  ];
+  // 1) Watch for on‐chain disconnect → clear local
+  useEffect(() => {
+    if (!liveAddress) {
+      setStoredAddress(null);
+      setUsername('');
+      setBalance('0');
+    }
+  }, [liveAddress]);
 
-  // load Firestore-stored wallet
+  // 2) Load Firestore wallet once
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
@@ -73,7 +83,7 @@ export default function Dashboard() {
     return () => { cancelled = true; };
   }, []);
 
-  // fetch on-chain balance
+  // 3) Fetch on‐chain balance when address changes
   useEffect(() => {
     const addr = liveAddress || storedAddress;
     if (!addr) {
@@ -83,7 +93,7 @@ export default function Dashboard() {
     let cancelled = false;
     (async () => {
       try {
-        const provider = new JsonRpcProvider('http://172.20.10.6:8546');
+        const provider = new JsonRpcProvider('http://192.168.100.129:8546');
         const raw      = await provider.getBalance(addr);
         if (!cancelled) setBalance(formatEther(raw));
       } catch {
@@ -93,9 +103,13 @@ export default function Dashboard() {
     return () => { cancelled = true; };
   }, [liveAddress, storedAddress]);
 
-  // compute connection state
+  // connection state & address to show
   const displayAddress  = liveAddress || storedAddress || 'Not connected';
   const walletConnected = displayAddress !== 'Not connected';
+
+  // dynamic header & list offsets
+  const HEADER_HEIGHT    = 56;
+  const headerTotalHeight = insets.top + HEADER_HEIGHT;
 
   const sections: SectionListData<SectionItem>[] = [
     { title: 'Other wallets',       data: otherWallets },
@@ -104,26 +118,43 @@ export default function Dashboard() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Sticky header */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
+      {/*  —————— HEADER —————— */}
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop:   insets.top,
+            height:       headerTotalHeight,
+          },
+        ]}
+      >
         <Text style={styles.headerTitle}>BlockPay</Text>
       </View>
 
+      {/*  —————— CONTENT —————— */}
       <SectionList
         sections={sections}
         keyExtractor={(_, idx) => idx.toString()}
         stickySectionHeadersEnabled={false}
+        contentContainerStyle={{
+          // push below the header
+          paddingTop: 80,
+          paddingBottom: 10,
+        }}
+
         ListHeaderComponent={() => (
           <>
-            {/* Wallet tile */}
+            {/* WalletTile */}
             <View style={styles.walletTileSection}>
-              <WalletTile
-                address={displayAddress}
-                isConnected={walletConnected}
-              />
+              <View style={styles.walletTileWrapper}>
+                <WalletTile
+                  address={displayAddress}
+                  isConnected={walletConnected}
+                />
+              </View>
             </View>
 
-            {/* Centered & larger Username / Balance / Chain ID */}
+            {/* Centered Info */}
             <View style={styles.walletInfoSection}>
               <Text style={styles.walletInfoText}>
                 Wallet:{' '}
@@ -145,7 +176,7 @@ export default function Dashboard() {
             <View style={styles.actionRow}>
               <TouchableOpacity
                 style={[styles.actionButton, styles.send]}
-                onPress={() => alert('Send not built yet')}
+                onPress={() => navigation.navigate('SendScreen')}
               >
                 <Text style={styles.actionText}>Send</Text>
               </TouchableOpacity>
@@ -160,32 +191,29 @@ export default function Dashboard() {
                   styles.actionButton,
                   walletConnected ? styles.disconnect : styles.connect,
                 ]}
-                onPress={async () => {
+                onPress={() => {
                   if (walletConnected) {
-                    await disconnect();
-                    // clear local state so it really disconnects
-                    setStoredAddress(null);
-                    setUsername('');
+                    disconnect();
                   } else {
                     navigation.navigate('ConnectWallet');
                   }
                 }}
               >
                 <Text style={styles.actionText}>
-                  {walletConnected ? 'Disconnect' : 'Connect Wallet'}
+                  {walletConnected ? 'Disconnect' : 'Connect'}
                 </Text>
               </TouchableOpacity>
             </View>
           </>
         )}
-        renderSectionHeader={({ section: { title } }) => (
+
+        renderSectionHeader={({ section }) => (
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{title}</Text>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
           </View>
         )}
         renderItem={({ item }) => {
           if ('balance' in item) {
-            // OtherWallet
             return (
               <View style={styles.itemRow}>
                 <Image
@@ -208,7 +236,6 @@ export default function Dashboard() {
               </View>
             );
           } else {
-            // Transaction
             return (
               <View style={styles.itemRow}>
                 <Image
@@ -238,77 +265,95 @@ export default function Dashboard() {
             );
           }
         }}
-        contentContainerStyle={{
-          paddingTop: 16,
-          paddingBottom: 100,
-        }}
       />
 
+      {/*  —————— NAV BAR —————— */}
       <NavBar />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container:           { flex: 1, backgroundColor: '#f5f5f5' },
-  header:              {
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderColor:     '#ddd',
-    alignItems:      'center',
-    justifyContent:  'center',
+  container: { flex: 1, backgroundColor: '#f5f5f5' },
+
+  header: {
+    position:       'absolute',
+    top:            0,
+    left:           0,
+    right:          0,
+    backgroundColor:'#fff',
+    borderBottomWidth:0.5,
+    borderColor:    '#ddd',
+    alignItems:     'center',
+    justifyContent: 'center',
+    zIndex:         10,
   },
-  headerTitle:         {
-    fontSize:    20,
-    fontFamily:  'Manrope_700Bold',
-  },
-  walletTileSection:   { marginHorizontal: 15, marginTop: 15, alignItems: 'center' },
-  walletInfoSection:   {
-    marginHorizontal: 20,
-    marginTop:       12,
-    alignItems:      'center',    // center everything
-  },
-  walletInfoText:      {
-    fontFamily: 'Manrope_500Medium',
-    fontSize:   18,               // larger labels
-    textAlign:  'center',
-    color:      '#333',
-  },
-  walletInfoValue:     {
+  headerTitle: {
     fontFamily: 'Manrope_700Bold',
-    fontSize:   22,               // bigger values
+    fontSize:   20,
+  },
+
+  walletTileSection: {
+    alignItems: 'center',
+  },
+  walletTileWrapper: {
+    width:     '90%',
+    alignSelf: 'center',
+    paddingVertical:  1,
+
+  },
+
+  walletInfoSection: {
+    alignItems: 'center',
+    marginTop:  12,
+  },
+  walletInfoText: {
+    fontFamily: 'Manrope_500Medium',
+    fontSize:   18,
+    color:      '#333',
+    textAlign:  'center',
+  },
+  walletInfoValue: {
+    fontFamily: 'Manrope_700Bold',
+    fontSize:   22,
     color:      '#000',
   },
-  actionRow:           {
+
+  actionRow: {
     flexDirection:   'row',
     justifyContent:  'space-between',
     marginHorizontal:20,
     marginTop:       16,
     marginBottom:    24,
   },
-  actionButton:        {
+  actionButton: {
     flex:            1,
     paddingVertical: 12,
     borderRadius:    24,
     alignItems:      'center',
     marginHorizontal:4,
   },
-  actionText:          {
-    fontFamily: 'Manrope_500Medium',
+  actionText: {
+    fontFamily: 'Manrope_700Bold',
     fontSize:   16,
     color:      '#fff',
   },
-  send:                { backgroundColor: '#3b82f6' },
-  receive:             { backgroundColor: '#10b981' },
-  disconnect:          { backgroundColor: '#ef4444' },
-  connect:             { backgroundColor: '#22c55e' },
-  sectionHeader:       { marginHorizontal: 20, marginTop: 16 },
-  sectionTitle:        {
+  send:       { backgroundColor: '#3b82f6' },
+  receive:    { backgroundColor: '#10b981' },
+  disconnect: { backgroundColor: '#ff7f7f' },
+  connect:    { backgroundColor: '#22c55e' },
+
+  sectionHeader: {
+    marginHorizontal:20,
+    marginTop:      16,
+  },
+  sectionTitle: {
     fontFamily: 'Manrope_700Bold',
     fontSize:   16,
     color:      '#333',
   },
-  itemRow:             {
+
+  itemRow: {
     flexDirection:  'row',
     alignItems:     'center',
     paddingVertical:12,
@@ -316,13 +361,13 @@ const styles = StyleSheet.create({
     borderBottomWidth:1,
     borderColor:    '#ececec',
   },
-  walletIcon:          { width: 24, height: 24, marginRight: 12 },
-  fontedText:          {
+  walletIcon: { width: 24, height: 24, marginRight: 12 },
+  fontedText: {
     fontFamily: 'Manrope_500Medium',
     color:      '#333',
   },
-  smallText:           { fontSize: 12, color: '#888', marginTop: 2 },
-  balanceText:         { marginLeft: 'auto', fontWeight: '600' },
-  positive:            { color: '#10b981' },
-  negative:            { color: '#ef4444' },
+  smallText:    { fontSize: 12, color: '#888', marginTop: 2 },
+  balanceText:  { marginLeft: 'auto', fontWeight: '600' },
+  positive:     { color: '#10b981' },
+  negative:     { color: '#ef4444' },
 });

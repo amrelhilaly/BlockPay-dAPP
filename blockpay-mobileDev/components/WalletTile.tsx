@@ -20,7 +20,7 @@ export default function WalletTile({
       imageStyle={styles.bgImage}
     >
       <View>
-        <Text style={styles.labelSmall}>wallet address:</Text>
+        <Text style={styles.labelSmall}></Text>
         <Text
           style={styles.address}
           numberOfLines={1}
@@ -35,7 +35,7 @@ export default function WalletTile({
 
 const styles = StyleSheet.create({
   card: {
-    width:         '100%',
+    width:         '101%',
     height:        200,
     borderRadius:  16,
     overflow:      'hidden',
@@ -54,7 +54,8 @@ const styles = StyleSheet.create({
   address: {
     color:      '#fff',
     fontSize:   14,
-    marginTop:  4,
+    marginTop: 5,
     fontFamily: 'Manrope',
+    padding: 5,
   },
 });

@@ -4,6 +4,7 @@ import SignupScreen from "../screens/SignupScreen";
 import ConnectWalletScreen from "../screens/ConnectWalletScreen";
 import Dashboard from "../screens/Dashboard";
 import LoginScreen from "../screens/LoginScreen";
+import SendScreen from "../screens/SendScreen";
 
 // Define the navigation parameter list to match screen props across your app
 export type RootStackParamList = {
@@ -11,7 +12,8 @@ export type RootStackParamList = {
   Signup: undefined;
   Login: undefined;
   ConnectWallet: undefined;
-  Dashboard: { username: string };  // <— Add this
+  Dashboard: { username: string }; 
+  SendScreen: undefined // <— Add this
 };
 
 // Create the stack navigator with the typed parameter list
@@ -28,6 +30,8 @@ export default function StackNavigator() {
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="ConnectWallet" component={ConnectWalletScreen} />
       <Stack.Screen name="Dashboard" component={Dashboard} />
+      <Stack.Screen name="SendScreen" component={SendScreen} />
+
     </Stack.Navigator>
   );
 }

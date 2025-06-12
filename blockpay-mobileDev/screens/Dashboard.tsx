@@ -93,7 +93,7 @@ export default function Dashboard() {
     let cancelled = false;
     (async () => {
       try {
-        const provider = new JsonRpcProvider('http://192.168.100.129:8546');
+        const provider = new JsonRpcProvider('http://172.20.10.6:8546');
         const raw      = await provider.getBalance(addr);
         if (!cancelled) setBalance(formatEther(raw));
       } catch {

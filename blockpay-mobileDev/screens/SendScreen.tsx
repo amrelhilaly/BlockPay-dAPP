@@ -15,24 +15,30 @@ import {
   isAddress,
   JsonRpcProvider,
   Contract,
+  JsonRpcSigner,
 } from 'ethers'
 import { useAppKitAccount } from '@reown/appkit-ethers-react-native'
 import BlockPayArtifact from '../abi/BlockPay.json'
 
-// Firestore imports for username → address lookup
-import { db } from '../firebase/firebase'
-import { collection, query, where, getDocs } from 'firebase/firestore'
+// Firestore imports for username ↔ address lookup & transaction logging
+import { db, auth } from '../firebase/firebase'
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  serverTimestamp,
+} from 'firebase/firestore'
 
-// ← your deployed BlockPay contract address
-const CONTRACT_ADDRESS = '0x7D23c09b813dC78Ef5328ABE09CF49E2a78B2e81'
-// ← your Geth RPC endpoint
-const RPC_URL = 'http://172.20.10.6:8546'
+const CONTRACT_ADDRESS = '0x77f68AA0a8247f427Da41a12dcD01AA8d10c119c'
+const RPC_URL          = 'http://192.168.100.129:8546'
 
 export default function SendScreen() {
-  const { address: senderAddress, isConnected } = useAppKitAccount()
-  const [receiver, setReceiver] = useState('')       // this is the BlockPay username
-  const [amountEth, setAmountEth] = useState('')
-  const [loading, setLoading] = useState(false)
+  const { isConnected } = useAppKitAccount()
+  const [receiverUsername, setReceiverUsername] = useState('')
+  const [amountEth, setAmountEth]               = useState('')
+  const [loading, setLoading]                   = useState(false)
 
   if (!isConnected) {
     return (
@@ -43,12 +49,11 @@ export default function SendScreen() {
   }
 
   const handleSend = async () => {
-    const username = receiver.trim()
+    const username = receiverUsername.trim()
     if (!username) {
       return Alert.alert('Invalid username', 'Please enter a BlockPay username.')
     }
 
-    // 1️⃣ Parse amount to wei
     let value
     try {
       value = parseEther(amountEth)
@@ -57,53 +62,89 @@ export default function SendScreen() {
     }
 
     setLoading(true)
+    const senderUid = auth.currentUser?.uid
     try {
-      // 2️⃣ Lookup the username in Firestore to get the hex address
+      // 1️⃣ lookup recipient wallet doc
       const walletsRef = collection(db, 'wallets')
-      const q = query(walletsRef, where('username', '==', username))
-      const querySnapshot = await getDocs(q)
-
-      if (querySnapshot.empty) {
-        Alert.alert('User not found', `No BlockPay user with username "${username}".`)
-        setLoading(false)
-        return
+      const q          = query(walletsRef, where('username', '==', username))
+      const qs         = await getDocs(q)
+      if (qs.empty) {
+        throw new Error(`No user "${username}"`)
       }
-
-      const data = querySnapshot.docs[0].data()
-      const toAddress = data.address as string  // adjust field name if needed
+      const recipientData = qs.docs[0].data()
+      const toAddress     = recipientData.address as string
+      const recipientUid  = recipientData.uid as string
 
       if (!isAddress(toAddress)) {
-        Alert.alert('Invalid address', 'The recipient’s wallet address is invalid.')
-        setLoading(false)
-        return
+        throw new Error('Invalid recipient address')
       }
 
-      // 3️⃣ JSON-RPC provider to your unlocked Geth
-      const rpcProvider = new JsonRpcProvider(RPC_URL)
-
-      // 4️⃣ Use default signer (no ENS lookup)
-      const signer = rpcProvider.getSigner()
-
-      // 5️⃣ Instantiate contract with that signer
-      const blockPay = new Contract(
+      // 2️⃣ send on-chain
+      const rpcProvider: JsonRpcProvider = new JsonRpcProvider(RPC_URL)
+      const signer: JsonRpcSigner       = await rpcProvider.getSigner()
+      const fromAddress                = await signer.getAddress()
+      const blockPay                   = new Contract(
         CONTRACT_ADDRESS,
         BlockPayArtifact.abi,
-        await signer
+        signer
       )
-
-      // 6️⃣ Send tx with the fetched hex address
-      const tx = await blockPay.sendPayment(toAddress, { value })
-      Alert.alert('Transaction Sent', tx.hash)
-
-      // 7️⃣ Wait for confirmation
+      const tx      = await blockPay.sendPayment(toAddress, { value })
       const receipt = await tx.wait()
+
       Alert.alert(
         'Confirmed',
-        `✅ Sent ${amountEth} ETH from\n${senderAddress}\nto\n${toAddress}\nin block ${receipt.blockNumber}`
+        `✅ Sent ${amountEth} ETH from\n${fromAddress}\nto\n${toAddress}\nin block ${receipt.blockNumber}`
       )
+
+      // 3️⃣ optional: lookup sender’s username for the “received” record
+      let myName = '— you'
+      if (senderUid) {
+        const meQ    = query(walletsRef, where('uid', '==', senderUid))
+        const meSnap = await getDocs(meQ)
+        if (!meSnap.empty) {
+          myName = meSnap.docs[0].data().username as string
+        }
+      }
+
+      // 4️⃣ log the “sent” transaction for the sender
+      if (senderUid) {
+        await addDoc(collection(db, 'transactions'), {
+          uid:         senderUid,
+          type:        'Ethereum',
+          description: `Sent to ${username}`,
+          amount:      `-${amountEth} ETH`,
+          txHash:      tx.hash,
+          timestamp:   serverTimestamp(),
+          success:     true,
+        })
+      }
+
+      // 5️⃣ log the “received” transaction for the recipient
+      await addDoc(collection(db, 'transactions'), {
+        uid:         recipientUid,
+        type:        'Ethereum',
+        description: `Received from @${myName}`,
+        amount:      `+${amountEth} ETH`,
+        txHash:      tx.hash,
+        timestamp:   serverTimestamp(),
+        success:     true,
+      })
     } catch (err: any) {
       console.error(err)
       Alert.alert('Error', err.message || 'Something went wrong.')
+
+      // log failure for the sender
+      if (senderUid) {
+        await addDoc(collection(db, 'transactions'), {
+          uid:         senderUid,
+          type:        'Ethereum',
+          description: `Failed to send to ${receiverUsername}: ${err.message}`,
+          amount:      `-${amountEth} ETH`,
+          txHash:      null,
+          timestamp:   serverTimestamp(),
+          success:     false,
+        })
+      }
     } finally {
       setLoading(false)
     }
@@ -115,8 +156,8 @@ export default function SendScreen() {
         style={styles.input}
         placeholder="Recipient username"
         autoCapitalize="none"
-        value={receiver}
-        onChangeText={setReceiver}
+        value={receiverUsername}
+        onChangeText={setReceiverUsername}
       />
       <TextInput
         style={styles.input}
@@ -126,33 +167,16 @@ export default function SendScreen() {
         onChangeText={setAmountEth}
       />
 
-      {loading ? (
-        <ActivityIndicator size="large" />
-      ) : (
-        <Button title="Send On-Chain" onPress={handleSend} />
-      )}
+      {loading
+        ? <ActivityIndicator size="large" />
+        : <Button title="Send On-Chain" onPress={handleSend} />
+      }
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  container: {
-    flex: 1,
-    padding: 16,
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-  },
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    marginBottom: 12,
-  },
+  centered: { flex:1, justifyContent:'center', alignItems:'center' },
+  container:{ flex:1, padding:16, justifyContent:'center', backgroundColor:'#fff' },
+  input:    { height:48, borderWidth:1, borderColor:'#ccc', borderRadius:8, paddingHorizontal:12, marginBottom:12 },
 })

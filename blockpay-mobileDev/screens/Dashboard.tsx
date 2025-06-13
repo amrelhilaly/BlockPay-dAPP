@@ -1,6 +1,6 @@
 // Dashboard.tsx
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react'
 import {
   View,
   Text,
@@ -9,141 +9,189 @@ import {
   SectionListData,
   TouchableOpacity,
   Image,
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+  RefreshControl,
+  ActivityIndicator,
+} from 'react-native'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
-  useAppKit,
   useAppKitAccount,
   useAppKitState,
   useDisconnect,
-} from '@reown/appkit-ethers-react-native';
-import { JsonRpcProvider, formatEther } from 'ethers';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db, auth } from '../firebase/firebase';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../navigation/Stack';
+} from '@reown/appkit-ethers-react-native'
+import { JsonRpcProvider, formatEther } from 'ethers'
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy,
+  limit,
+} from 'firebase/firestore'
+import { db, auth } from '../firebase/firebase'
+import { useNavigation, useFocusEffect } from '@react-navigation/native'
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
+import type { RootStackParamList } from '../navigation/Stack'
 
-import WalletTile from '../components/WalletTile';
-import NavBar     from '../components/Navbar';
+import WalletTile from '../components/WalletTile'
+import NavBar     from '../components/Navbar'
 
 // --- TYPES ---
-type NavProp       = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
-type OtherWallet   = { type: 'Ethereum' | 'Bitcoin'; address: string; balance: string };
-type Transaction   = { type: 'Ethereum' | 'Bitcoin'; description: string; amount: string };
-type SectionItem   = OtherWallet | Transaction;
+type NavProp     = NativeStackNavigationProp<RootStackParamList, 'Dashboard'>
+type OtherWallet = { type: 'Ethereum' | 'Bitcoin'; address: string; balance: string }
+type Transaction = { type: 'Ethereum' | 'Bitcoin'; description: string; amount: string }
+type SectionItem = OtherWallet | Transaction
 
-// --- DUMMY DATA ---
+// --- DUMMY DATA FOR OTHER WALLETS ---
 const otherWallets: OtherWallet[] = [
   { type: 'Ethereum', address: '0x42…789', balance: '0.5 ETH' },
   { type: 'Bitcoin',  address: '0x1A…234', balance: '0.1 BTC' },
-];
-const transactions: Transaction[] = [
-  { type: 'Ethereum', description: 'Received from @blockchainlover', amount: '+0.5 ETH' },
-  { type: 'Bitcoin',  description: 'Sent to @digitalcurrency',      amount: '-0.1 BTC' },
-];
+]
 
 export default function Dashboard() {
-  const insets       = useSafeAreaInsets();
-  const navigation   = useNavigation<NavProp>();
-  const { open }     = useAppKit();
-  const { address: liveAddress } = useAppKitAccount();
-  const { selectedNetworkId }    = useAppKitState();
-  const { disconnect }           = useDisconnect();
+  const insets               = useSafeAreaInsets()
+  const navigation           = useNavigation<NavProp>()
+  const { address: liveAddress } = useAppKitAccount()
+  const { selectedNetworkId }    = useAppKitState()
+  const { disconnect }           = useDisconnect()
 
-  const [storedAddress, setStoredAddress] = useState<string | null>(null);
-  const [username,      setUsername]      = useState<string>('');
-  const [balance,       setBalance]       = useState<string>('0');
-  const [error,         setError]         = useState<string>('');
+  const [storedAddress,     setStoredAddress]     = useState<string|null>(null)
+  const [username,          setUsername]          = useState<string>('')
+  const [balance,           setBalance]           = useState<string>('0')
+  const [error,             setError]             = useState<string>('')
+  const [refreshing,        setRefreshing]        = useState<boolean>(false)
+  const [transactionsList,  setTransactionsList]  = useState<Transaction[]>([])
 
-  // 1) Watch for on‐chain disconnect → clear local
+  // 1) Clear on disconnect
   useEffect(() => {
     if (!liveAddress) {
-      setStoredAddress(null);
-      setUsername('');
-      setBalance('0');
+      setStoredAddress(null)
+      setUsername('')
+      setBalance('0')
     }
-  }, [liveAddress]);
+  }, [liveAddress])
 
   // 2) Load Firestore wallet once
   useEffect(() => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-    let cancelled = false;
-    (async () => {
-      const q    = query(collection(db, 'wallets'), where('uid','==',uid));
-      const snap = await getDocs(q);
-      if (cancelled) return;
+    const uid = auth.currentUser?.uid
+    if (!uid) return
+    let cancelled = false
+    ;(async () => {
+      const q    = query(collection(db, 'wallets'), where('uid','==',uid))
+      const snap = await getDocs(q)
+      if (cancelled) return
       if (!snap.empty) {
-        const d = snap.docs[0].data();
-        setUsername(d.username as string);
-        setStoredAddress(d.address as string);
+        const d = snap.docs[0].data()
+        setUsername(d.username as string)
+        setStoredAddress(d.address as string)
       }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+    })()
+    return () => { cancelled = true }
+  }, [])
 
-  // 3) Fetch on‐chain balance when address changes
-  useEffect(() => {
-    const addr = liveAddress || storedAddress;
+  // 3a) Fetch on-chain balance
+  const fetchBalance = useCallback(async () => {
+    const addr = liveAddress || storedAddress
     if (!addr) {
-      setBalance('0');
-      return;
+      setBalance('0')
+      return
     }
-    let cancelled = false;
-    (async () => {
-      try {
-        const provider = new JsonRpcProvider('http://172.20.10.6:8546');
-        const raw      = await provider.getBalance(addr);
-        if (!cancelled) setBalance(formatEther(raw));
-      } catch {
-        if (!cancelled) setError('Network unreachable');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [liveAddress, storedAddress]);
+    try {
+      const provider = new JsonRpcProvider('http://192.168.100.129:8546')
+      const raw      = await provider.getBalance(addr)
+      setBalance(formatEther(raw))
+      setError('')
+    } catch {
+      setError('Network unreachable')
+    }
+  }, [liveAddress, storedAddress])
 
-  // connection state & address to show
-  const displayAddress  = liveAddress || storedAddress || 'Not connected';
-  const walletConnected = displayAddress !== 'Not connected';
+  // 3b) Fetch recent transactions from Firestore
+  const fetchTransactions = useCallback(async () => {
+    const uid = auth.currentUser?.uid
+    if (!uid) return
+    try {
+      const txQ = query(
+        collection(db, 'transactions'),
+        where('uid','==',uid),
+        orderBy('timestamp','desc'),
+        limit(20)
+      )
+      const snap = await getDocs(txQ)
+      const txs = snap.docs.map(doc => {
+        const d = doc.data()
+        return {
+          type:        d.type as 'Ethereum'|'Bitcoin',
+          description: d.description as string,
+          amount:      d.amount as string,
+        }
+      })
+      setTransactionsList(txs)
+    } catch (err) {
+      console.error('Failed to load transactions', err)
+    }
+  }, [])
 
-  // dynamic header & list offsets
-  const HEADER_HEIGHT    = 56;
-  const headerTotalHeight = insets.top + HEADER_HEIGHT;
+  // 4) On mount & address change
+  useEffect(() => {
+    fetchBalance()
+    fetchTransactions()
+  }, [fetchBalance, fetchTransactions])
+
+  // 5) On screen focus
+  useFocusEffect(useCallback(() => {
+    fetchBalance()
+    fetchTransactions()
+  }, [fetchBalance, fetchTransactions]))
+
+  // 6) Pull-to-refresh handler
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true)
+    await Promise.all([fetchBalance(), fetchTransactions()])
+    setRefreshing(false)
+  }, [fetchBalance, fetchTransactions])
+
+  // Display logic
+  const displayAddress  = liveAddress || storedAddress || 'Not connected'
+  const walletConnected = displayAddress !== 'Not connected'
+  const HEADER_HEIGHT     = 56
+  const headerTotalHeight = insets.top + HEADER_HEIGHT
 
   const sections: SectionListData<SectionItem>[] = [
     { title: 'Other wallets',       data: otherWallets },
-    { title: 'Recent transactions', data: transactions },
-  ];
+    { title: 'Recent transactions', data: transactionsList },
+  ]
 
   return (
     <SafeAreaView style={styles.container}>
-      {/*  —————— HEADER —————— */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop:   insets.top,
-            height:       headerTotalHeight,
-          },
-        ]}
-      >
+      {/* HEADER */}
+      <View style={[styles.header, { paddingTop: insets.top, height: headerTotalHeight }]}>
         <Text style={styles.headerTitle}>BlockPay</Text>
       </View>
 
-      {/*  —————— CONTENT —————— */}
+      {/* CONTENT */}
       <SectionList
         sections={sections}
         keyExtractor={(_, idx) => idx.toString()}
         stickySectionHeadersEnabled={false}
-        contentContainerStyle={{
-          // push below the header
-          paddingTop: 80,
-          paddingBottom: 10,
-        }}
+        contentContainerStyle={{ paddingTop: 80, paddingBottom: 10 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#3b82f6"
+          />
+        }
 
         ListHeaderComponent={() => (
           <>
+            {refreshing && (
+              <ActivityIndicator
+                size="small"
+                color="#3b82f6"
+                style={{ marginVertical: 8 }}
+              />
+            )}
+
             {/* WalletTile */}
             <View style={styles.walletTileSection}>
               <View style={styles.walletTileWrapper}>
@@ -154,7 +202,7 @@ export default function Dashboard() {
               </View>
             </View>
 
-            {/* Centered Info */}
+            {/* Wallet Info */}
             <View style={styles.walletInfoSection}>
               <Text style={styles.walletInfoText}>
                 Wallet:{' '}
@@ -192,11 +240,9 @@ export default function Dashboard() {
                   walletConnected ? styles.disconnect : styles.connect,
                 ]}
                 onPress={() => {
-                  if (walletConnected) {
-                    disconnect();
-                  } else {
-                    navigation.navigate('ConnectWallet');
-                  }
+                  walletConnected
+                    ? disconnect()
+                    : navigation.navigate('ConnectWallet')
                 }}
               >
                 <Text style={styles.actionText}>
@@ -212,16 +258,14 @@ export default function Dashboard() {
             <Text style={styles.sectionTitle}>{section.title}</Text>
           </View>
         )}
+
         renderItem={({ item }) => {
           if ('balance' in item) {
+            // Other wallet
             return (
               <View style={styles.itemRow}>
                 <Image
-                  source={
-                    item.type === 'Ethereum'
-                      ? require('../assets/ethicon.png')
-                      : require('../assets/ethicon.png')
-                  }
+                  source={require('../assets/ethicon.png')}
                   style={styles.walletIcon}
                 />
                 <View style={{ flex: 1 }}>
@@ -234,16 +278,13 @@ export default function Dashboard() {
                   {item.balance}
                 </Text>
               </View>
-            );
+            )
           } else {
+            // Transaction
             return (
               <View style={styles.itemRow}>
                 <Image
-                  source={
-                    item.type === 'Ethereum'
-                      ? require('../assets/ethicon.png')
-                      : require('../assets/ethicon.png')
-                  }
+                  source={require('../assets/ethicon.png')}
                   style={styles.walletIcon}
                 />
                 <View style={{ flex: 1 }}>
@@ -256,37 +297,39 @@ export default function Dashboard() {
                   style={[
                     styles.fontedText,
                     styles.balanceText,
-                    item.amount.startsWith('+') ? styles.positive : styles.negative,
+                    item.amount.startsWith('+')
+                      ? styles.positive
+                      : styles.negative,
                   ]}
                 >
                   {item.amount}
                 </Text>
               </View>
-            );
+            )
           }
         }}
       />
 
-      {/*  —————— NAV BAR —————— */}
+      {/* NAV BAR */}
       <NavBar />
     </SafeAreaView>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
 
   header: {
-    position:       'absolute',
-    top:            0,
-    left:           0,
-    right:          0,
-    backgroundColor:'#fff',
-    borderBottomWidth:0.5,
-    borderColor:    '#ddd',
-    alignItems:     'center',
-    justifyContent: 'center',
-    zIndex:         10,
+    position:          'absolute',
+    top:               0,
+    left:              0,
+    right:             0,
+    backgroundColor:   '#fff',
+    borderBottomWidth: 0.5,
+    borderColor:       '#ddd',
+    alignItems:        'center',
+    justifyContent:    'center',
+    zIndex:            10,
   },
   headerTitle: {
     fontFamily: 'Manrope_700Bold',
@@ -299,8 +342,7 @@ const styles = StyleSheet.create({
   walletTileWrapper: {
     width:     '90%',
     alignSelf: 'center',
-    paddingVertical:  1,
-
+    paddingVertical: 1,
   },
 
   walletInfoSection: {
@@ -320,18 +362,18 @@ const styles = StyleSheet.create({
   },
 
   actionRow: {
-    flexDirection:   'row',
-    justifyContent:  'space-between',
-    marginHorizontal:20,
-    marginTop:       16,
-    marginBottom:    24,
+    flexDirection:    'row',
+    justifyContent:   'space-between',
+    marginHorizontal: 20,
+    marginTop:        16,
+    marginBottom:     24,
   },
   actionButton: {
-    flex:            1,
-    paddingVertical: 12,
-    borderRadius:    24,
-    alignItems:      'center',
-    marginHorizontal:4,
+    flex:             1,
+    paddingVertical:  12,
+    borderRadius:     24,
+    alignItems:       'center',
+    marginHorizontal: 4,
   },
   actionText: {
     fontFamily: 'Manrope_700Bold',
@@ -344,8 +386,8 @@ const styles = StyleSheet.create({
   connect:    { backgroundColor: '#22c55e' },
 
   sectionHeader: {
-    marginHorizontal:20,
-    marginTop:      16,
+    marginHorizontal: 20,
+    marginTop:       16,
   },
   sectionTitle: {
     fontFamily: 'Manrope_700Bold',
@@ -354,12 +396,12 @@ const styles = StyleSheet.create({
   },
 
   itemRow: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    paddingVertical:12,
+    flexDirection:   'row',
+    alignItems:      'center',
+    paddingVertical: 12,
     marginHorizontal:20,
     borderBottomWidth:1,
-    borderColor:    '#ececec',
+    borderColor:     '#ececec',
   },
   walletIcon: { width: 24, height: 24, marginRight: 12 },
   fontedText: {
@@ -370,4 +412,4 @@ const styles = StyleSheet.create({
   balanceText:  { marginLeft: 'auto', fontWeight: '600' },
   positive:     { color: '#10b981' },
   negative:     { color: '#ef4444' },
-});
+})

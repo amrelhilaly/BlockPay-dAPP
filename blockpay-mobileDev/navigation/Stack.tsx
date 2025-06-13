@@ -6,6 +6,7 @@ import Dashboard from "../screens/Dashboard";
 import LoginScreen from "../screens/LoginScreen";
 import SendScreen from "../screens/SendScreen";
 import ReceiveScreen from "../screens/RecieveScreen";
+import ManageWallets from "../screens/ManageWallets";
 
 // Define the navigation parameter list to match screen props across your app
 export type RootStackParamList = {
@@ -16,6 +17,7 @@ export type RootStackParamList = {
   Dashboard: { username: string }; 
   SendScreen: undefined // <— Add this
   ReceiveScreen: undefined;
+  ManageWallets: undefined;
 };
 
 // Create the stack navigator with the typed parameter list
@@ -34,6 +36,7 @@ export default function StackNavigator() {
       <Stack.Screen name="Dashboard" component={Dashboard} />
       <Stack.Screen name="SendScreen" component={SendScreen} />
       <Stack.Screen name="ReceiveScreen" component={ReceiveScreen} />
+      <Stack.Screen name="ManageWallets" component={ManageWallets} />
 
     </Stack.Navigator>
   );

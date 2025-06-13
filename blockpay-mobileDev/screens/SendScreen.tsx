@@ -1,6 +1,6 @@
 // SendScreen.tsx
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import {
   Contract,
   JsonRpcSigner,
 } from 'ethers'
+import { Camera, CameraView } from 'expo-camera'
 import { useAppKitAccount } from '@reown/appkit-ethers-react-native'
 import BlockPayArtifact from '../abi/BlockPay.json'
 
@@ -39,6 +40,49 @@ export default function SendScreen() {
   const [receiverUsername, setReceiverUsername] = useState('')
   const [amountEth, setAmountEth]               = useState('')
   const [loading, setLoading]                   = useState(false)
+  const [scanning, setScanning]                 = useState(false)
+  const [hasPermission, setHasPermission]       = useState<boolean|null>(null)
+
+  // request camera permission on mount
+  useEffect(() => {
+    ;(async () => {
+      const { status } = await Camera.requestCameraPermissionsAsync()
+      setHasPermission(status === 'granted')
+    })()
+  }, [])
+
+  // barcode scanned handler
+  const handleBarcodeScanned = ({ type, data }: { type: string; data: string }) => {
+    setScanning(false)
+    setReceiverUsername(data)
+  }
+
+  // show camera view when scanning
+  if (scanning) {
+    if (hasPermission === null) {
+      return (
+        <View style={styles.centered}>
+          <Text>Requesting camera permission…</Text>
+        </View>
+      )
+    }
+    if (!hasPermission) {
+      return (
+        <View style={styles.centered}>
+          <Text>No access to camera. Please enable it in settings.</Text>
+        </View>
+      )
+    }
+    return (
+      <View style={styles.scannerContainer}>
+        <CameraView
+          onBarcodeScanned={handleBarcodeScanned}
+          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+          style={StyleSheet.absoluteFillObject}
+        />
+      </View>
+    )
+  }
 
   if (!isConnected) {
     return (
@@ -51,7 +95,7 @@ export default function SendScreen() {
   const handleSend = async () => {
     const username = receiverUsername.trim()
     if (!username) {
-      return Alert.alert('Invalid username', 'Please enter a BlockPay username.')
+      return Alert.alert('Invalid username', 'Please enter or scan a username.')
     }
 
     let value
@@ -64,26 +108,20 @@ export default function SendScreen() {
     setLoading(true)
     const senderUid = auth.currentUser?.uid
     try {
-      // 1️⃣ lookup recipient wallet doc
+      // lookup recipient
       const walletsRef = collection(db, 'wallets')
       const q          = query(walletsRef, where('username', '==', username))
       const qs         = await getDocs(q)
-      if (qs.empty) {
-        throw new Error(`No user "${username}"`)
-      }
-      const recipientData = qs.docs[0].data()
-      const toAddress     = recipientData.address as string
-      const recipientUid  = recipientData.uid as string
+      if (qs.empty) throw new Error(`No user "${username}"`)
+      const { address: toAddress, uid: recipientUid } = qs.docs[0].data()
 
-      if (!isAddress(toAddress)) {
-        throw new Error('Invalid recipient address')
-      }
+      if (!isAddress(toAddress)) throw new Error('Invalid recipient address')
 
-      // 2️⃣ send on-chain
+      // send on-chain
       const rpcProvider: JsonRpcProvider = new JsonRpcProvider(RPC_URL)
       const signer: JsonRpcSigner       = await rpcProvider.getSigner()
-      const fromAddress                = await signer.getAddress()
-      const blockPay                   = new Contract(
+      const fromAddress                 = await signer.getAddress()
+      const blockPay                    = new Contract(
         CONTRACT_ADDRESS,
         BlockPayArtifact.abi,
         signer
@@ -93,20 +131,18 @@ export default function SendScreen() {
 
       Alert.alert(
         'Confirmed',
-        `✅ Sent ${amountEth} ETH from\n${fromAddress}\nto\n${toAddress}\nin block ${receipt.blockNumber}`
+        `✅ Sent ${amountEth} ETH\nfrom ${fromAddress}\nto ${toAddress}\nin block ${receipt.blockNumber}`
       )
 
-      // 3️⃣ optional: lookup sender’s username for the “received” record
+      // lookup sender’s username
       let myName = '— you'
       if (senderUid) {
         const meQ    = query(walletsRef, where('uid', '==', senderUid))
         const meSnap = await getDocs(meQ)
-        if (!meSnap.empty) {
-          myName = meSnap.docs[0].data().username as string
-        }
+        if (!meSnap.empty) myName = meSnap.docs[0].data().username
       }
 
-      // 4️⃣ log the “sent” transaction for the sender
+      // log “sent”
       if (senderUid) {
         await addDoc(collection(db, 'transactions'), {
           uid:         senderUid,
@@ -118,8 +154,7 @@ export default function SendScreen() {
           success:     true,
         })
       }
-
-      // 5️⃣ log the “received” transaction for the recipient
+      // log “received”
       await addDoc(collection(db, 'transactions'), {
         uid:         recipientUid,
         type:        'Ethereum',
@@ -132,8 +167,6 @@ export default function SendScreen() {
     } catch (err: any) {
       console.error(err)
       Alert.alert('Error', err.message || 'Something went wrong.')
-
-      // log failure for the sender
       if (senderUid) {
         await addDoc(collection(db, 'transactions'), {
           uid:         senderUid,
@@ -159,6 +192,15 @@ export default function SendScreen() {
         value={receiverUsername}
         onChangeText={setReceiverUsername}
       />
+
+      <Button
+        title="Scan QR"
+        onPress={() => {
+          if (hasPermission) setScanning(true)
+          else Alert.alert('Camera permission', 'Allow camera access to scan QR.')
+        }}
+      />
+
       <TextInput
         style={styles.input}
         placeholder="Amount (in ETH)"
@@ -176,7 +218,8 @@ export default function SendScreen() {
 }
 
 const styles = StyleSheet.create({
-  centered: { flex:1, justifyContent:'center', alignItems:'center' },
-  container:{ flex:1, padding:16, justifyContent:'center', backgroundColor:'#fff' },
-  input:    { height:48, borderWidth:1, borderColor:'#ccc', borderRadius:8, paddingHorizontal:12, marginBottom:12 },
+  centered:        { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  container:       { flex: 1, padding: 16, justifyContent: 'center', backgroundColor: '#fff' },
+  input:           { height: 48, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 12, marginBottom: 12 },
+  scannerContainer:{ flex: 1, backgroundColor: '#000' },
 })

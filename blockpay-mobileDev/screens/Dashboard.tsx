@@ -230,7 +230,7 @@ export default function Dashboard() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionButton, styles.receive]}
-                onPress={() => alert('Receive not built yet')}
+                onPress={() => navigation.navigate('ReceiveScreen')}
               >
                 <Text style={styles.actionText}>Receive</Text>
               </TouchableOpacity>

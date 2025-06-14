@@ -14,7 +14,6 @@ import { getAuth } from 'firebase/auth';
 import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import WalletTileDet from '../components/WalletTile_Det';
-import NavBar from '../components/Navbar';
 
 type Wallet = {
   id: string;
@@ -106,11 +105,13 @@ export default function ManageWallets() {
         data={wallets}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
+        <View style={styles.itemWrapper}>
           <WalletTileDet
             wallet={item}
             inEditMode={editMode}
             onDelete={handleDelete}
           />
+          </View>
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
@@ -119,8 +120,6 @@ export default function ManageWallets() {
         }
       />
 
-     {/* NAV BAR */}
-           <NavBar />
     </SafeAreaView>
   );
 }
@@ -133,6 +132,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     elevation: 2,
+    
   },
   topbarTitle: { fontSize: 20, fontWeight: '600' },
   section: {
@@ -148,10 +148,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     backgroundColor: '#e0e0e0',
-    borderRadius: 4,
+    borderRadius: 10,
   },
   actionText: { fontSize: 16, fontWeight: '600' },
-  list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 80 },
+  list: {
+    alignItems: 'center',
+    paddingTop: 20,
+    paddingBottom: 80,
+  },
+  itemWrapper: {
+    width: '95%',
+    alignSelf: 'center',
+  },
   empty: {
     marginTop: 40,
     alignItems: 'center',

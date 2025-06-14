@@ -1,21 +1,32 @@
-import React from 'react';
+import React, {memo} from 'react';
 import { View, Text, StyleSheet, ImageBackground } from 'react-native';
 
 export type WalletTileProps = {
   address:     string;
   isConnected: boolean;
+  bgIndex?:    number;
 };
 
-const CONNECTED_BG      = require('../assets/walletbg.png');
-const DISCONNECTED_BG   = require('../assets/nowalletbg.png');
+const BACKGROUNDS = [
+  require('../assets/walletbg.png'),
+  require('../assets/walletbg2.png'),
+  require('../assets/walletbg3.png'),
+  require('../assets/walletbg4.png'),
+];
+const DISCONNECTED_BG = require('../assets/nowalletbg.png');
 
-export default function WalletTile({
+function WalletTile({
   address,
   isConnected,
+  bgIndex = 0,
 }: WalletTileProps) {
+  const source = isConnected
+    ? BACKGROUNDS[bgIndex % BACKGROUNDS.length]
+    : DISCONNECTED_BG;
+
   return (
     <ImageBackground
-      source={isConnected ? CONNECTED_BG : DISCONNECTED_BG}
+      source={source}
       style={styles.card}
       imageStyle={styles.bgImage}
     >
@@ -24,7 +35,7 @@ export default function WalletTile({
         <Text
           style={styles.address}
           numberOfLines={1}
-          ellipsizeMode="middle"
+          ellipsizeMode='middle'
         >
           {address}
         </Text>
@@ -32,6 +43,9 @@ export default function WalletTile({
     </ImageBackground>
   );
 }
+
+export default memo(WalletTile)
+
 
 const styles = StyleSheet.create({
   card: {
@@ -53,6 +67,9 @@ const styles = StyleSheet.create({
   },
   address: {
     color:      '#fff',
+    textShadowOffset: { width: 0.3, height: 0.3 },
+    textShadowRadius: 2,
+    textShadowColor: '#7D7D7D',
     fontSize:   14,
     marginTop: 5,
     fontFamily: 'Manrope',

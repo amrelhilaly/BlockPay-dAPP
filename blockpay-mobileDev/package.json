@@ -16,6 +16,7 @@
     "@react-native-community/netinfo": "11.4.1",
     "@react-native-firebase/app": "^22.2.0",
     "@react-native-firebase/auth": "^22.2.0",
+    "@react-navigation/bottom-tabs": "^7.3.14",
     "@react-navigation/native": "^7.1.9",
     "@react-navigation/native-stack": "^7.3.13",
     "@reown/appkit-ethers-react-native": "^1.2.4",
@@ -28,25 +29,29 @@
     "expo-app-loading": "^2.1.1",
     "expo-application": "~6.1.4",
     "expo-barcode-scanner": "^13.0.1",
+    "expo-camera": "~16.1.8",
     "expo-status-bar": "~2.2.3",
     "firebase": "^11.9.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "^0.79.3",
     "react-native-get-random-values": "~1.11.0",
+    "react-native-linear-gradient": "^2.8.3",
     "react-native-modal": "^13.0.1",
     "react-native-qrcode-scanner": "^1.5.5",
     "react-native-qrcode-svg": "^6.3.15",
     "react-native-safe-area-context": "5.4.0",
     "react-native-screens": "~4.11.1",
     "react-native-svg": "15.11.2",
+    "react-native-vector-icons": "^10.2.0",
     "react-native-web": "^0.20.0",
-    "expo-camera": "~16.1.8"
+    "expo-linear-gradient": "~14.1.5"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/crypto-js": "^4.2.2",
     "@types/react": "~19.0.10",
+    "@types/react-native-vector-icons": "^6.4.18",
     "typescript": "~5.8.3"
   },
   "private": true

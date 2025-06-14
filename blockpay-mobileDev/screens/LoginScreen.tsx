@@ -1,54 +1,56 @@
-import React, { useState } from "react";
-import { View, Text, TextInput, Button, StyleSheet, Alert } from "react-native";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { collection, query, where, getDocs } from "firebase/firestore";
-import { auth, db } from "../firebase/firebase";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
+// screens/LoginScreen.tsx
 
-type RootStackParamList = {
-  Login:         undefined;
-  Signup:        undefined;
-  ConnectWallet: undefined;
-  Dashboard:     undefined;
-};
+import React, { useState } from "react"
+import {
+  View,
+  Text,
+  TextInput,
+  Button,
+  StyleSheet,
+  Alert,
+} from "react-native"
+import { signInWithEmailAndPassword } from "firebase/auth"
+import { collection, query, where, getDocs } from "firebase/firestore"
+import { auth, db } from "../firebase/firebase"
+import type { NativeStackScreenProps } from "@react-navigation/native-stack"
+import type { RootStackParamList } from "../navigation/Stack"
 
-type Props = NativeStackScreenProps<RootStackParamList, "Login">;
+type Props = NativeStackScreenProps<RootStackParamList, "Login">
 
 export default function LoginScreen({ navigation }: Props) {
-  const [email, setEmail]       = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading]   = useState(false);
+  const [email, setEmail]       = useState("")
+  const [password, setPassword] = useState("")
+  const [loading, setLoading]   = useState(false)
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert("Please enter both email and password.");
-      return;
+      Alert.alert("Please enter both email and password.")
+      return
     }
 
-    setLoading(true);
+    setLoading(true)
     try {
-      // 1) Sign in
-      const userCred = await signInWithEmailAndPassword(auth, email, password);
-      const uid = userCred.user.uid;
+      const userCred = await signInWithEmailAndPassword(auth, email, password)
+      const uid = userCred.user.uid
 
-      // 2) Query wallets by that UID
       const walletSnap = await getDocs(
         query(collection(db, "wallets"), where("uid", "==", uid))
-      );
+      )
 
-      // 3) Redirect based on existence
       if (walletSnap.empty) {
-        navigation.replace("ConnectWallet");
+        // No wallet yet—go set one up
+        navigation.replace("ConnectWallet")
       } else {
-        navigation.replace("Dashboard");
+        // Already have a wallet—jump into the tabs, defaulting to Dashboard
+        navigation.replace("MainTabs")
       }
     } catch (err: any) {
-      console.error("Login failed", err);
-      Alert.alert("Login Error", err.message || "Could not log in.");
+      console.error("Login failed", err)
+      Alert.alert("Login Error", err.message || "Could not log in.")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <View style={styles.container}>
@@ -85,24 +87,35 @@ export default function LoginScreen({ navigation }: Props) {
         />
       </View>
     </View>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1, justifyContent: "center", padding: 20, backgroundColor: "#fff",
+    flex:           1,
+    justifyContent: "center",
+    padding:        20,
+    backgroundColor:"#fff",
   },
   title: {
-    fontSize: 22, fontWeight: "bold", marginBottom: 20, textAlign: "center",
+    fontSize:     22,
+    fontWeight:   "bold",
+    marginBottom: 20,
+    textAlign:    "center",
   },
   input: {
-    borderWidth: 1, borderColor: "#ccc",
-    padding: 12, marginBottom: 12, borderRadius: 6,
+    borderWidth:  1,
+    borderColor:  "#ccc",
+    padding:      12,
+    marginBottom: 12,
+    borderRadius: 6,
   },
   footer: {
-    marginTop: 24, alignItems: "center",
+    marginTop:   24,
+    alignItems:  "center",
   },
   footerText: {
-    marginBottom: 8, color: "#666",
+    marginBottom: 8,
+    color:        "#666",
   },
-});
+})

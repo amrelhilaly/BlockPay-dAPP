@@ -1,6 +1,6 @@
 // screens/Dashboard.tsx
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import {
   View,
   Text,
@@ -9,13 +9,13 @@ import {
   TouchableOpacity,
   Image,
   RefreshControl,
-  ActivityIndicator,
-  LayoutAnimation,
-  UIManager,
+  Animated,
   Platform,
-  ScrollView,                  // <— added
+  UIManager,
+  ScrollView,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import {
   useAppKitAccount,
   useAppKitState,
@@ -31,94 +31,116 @@ import {
   limit,
 } from 'firebase/firestore'
 import { db, auth } from '../firebase/firebase'
-import { useNavigation, useFocusEffect } from '@react-navigation/native'
+import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import type { BottomTabNavigationProp }   from '@react-navigation/bottom-tabs'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import type { TabParamList, RootStackParamList } from '../navigation/Stack'
 
 import WalletTile from '../components/WalletTile'
 
-// Enable LayoutAnimation on Android
+// Enable Android LayoutAnimation if you ever reintroduce it
 if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true)
 }
 
-// --- TYPES ---
-type OtherWallet   = { type: 'Ethereum'|'Bitcoin'; address: string; balance: string }
-type Transaction   = { type: 'Ethereum'|'Bitcoin'; description: string; amount: string }
-type SectionItem   = OtherWallet | Transaction
-type UserWallet    = { id: string; username: string; address: string; bgIndex: number }
+const ACTIVE_WALLET_KEY = 'ACTIVE_WALLET_ID'
 
-// --- NAV HOOKS ---
-const useTabNav  = () => useNavigation<BottomTabNavigationProp<TabParamList>>()
+type Transaction = { type: 'Ethereum' | 'Bitcoin'; description: string; amount: string }
+type UserWallet  = { id: string; username: string; address: string; bgIndex: number }
+
 const useRootNav = () => useNavigation<NativeStackNavigationProp<RootStackParamList>>()
 
 export default function Dashboard() {
-  const insets           = useSafeAreaInsets()
-  const tabNavigation    = useTabNav()
-  const rootNavigation   = useRootNav()
+  const insets         = useSafeAreaInsets()
+  const rootNav        = useRootNav()
   const { address: liveAddress } = useAppKitAccount()
   const { selectedNetworkId }    = useAppKitState()
   const { disconnect }           = useDisconnect()
 
-  // — multi-wallet state —
   const [wallets,        setWallets]        = useState<UserWallet[]>([])
   const [activeWalletId, setActiveWalletId] = useState<string>('')
-  const [showSwitcher,   setShowSwitcher]   = useState<boolean>(false)
+  const [storedAddress,  setStoredAddress]  = useState<string|null>(null)
+  const [username,       setUsername]       = useState<string>('')
+  const [balance,        setBalance]        = useState<string>('0')
+  const [error,          setError]          = useState<string>('')
+  const [refreshing,     setRefreshing]     = useState<boolean>(false)
+  const [transactions,   setTransactions]   = useState<Transaction[]>([])
 
-  // — UI state for the *active* wallet —
-  const [storedAddress,    setStoredAddress]    = useState<string|null>(null)
-  const [username,         setUsername]         = useState<string>('')
-  const [balance,          setBalance]          = useState<string>('0')
-  const [error,            setError]            = useState<string>('')
-  const [refreshing,       setRefreshing]       = useState<boolean>(false)
-  const [transactionsList, setTransactionsList] = useState<Transaction[]>([])
+  // dropdown animation
+  const dropdownAnim = useRef(new Animated.Value(0)).current
+  const [dropdownVisible, setDropdownVisible] = useState(false)
+  const MAX_HEIGHT = 150
 
-  // 1) Load user wallets
-  const fetchUserWallets = useCallback(async () => {
+  // — 1) Load stored selection, then fetch wallets —
+  const fetchWallets = useCallback(async () => {
     const uid = auth.currentUser?.uid
     if (!uid) return
 
+    // fetch wallet list
     const snap = await getDocs(
-      query(collection(db,'wallets'), where('uid','==',uid))
+      query(collection(db, 'wallets'), where('uid','==',uid))
     )
-
-    const fetched = snap.docs.map((doc, idx) => ({
-      id:       doc.id,
-      username: doc.data().username as string,
-      address:  doc.data().address as string,
-      bgIndex:  idx % 4,
+    const list = snap.docs.map((d,i) => ({
+      id:       d.id,
+      username: d.data().username as string,
+      address:  d.data().address as string,
+      bgIndex:  i % 4,
     }))
+    setWallets(list)
 
-    setWallets(fetched)
-
-    if (fetched.length > 0) {
-      const first = fetched[0]
-      setActiveWalletId(first.id)
-      setUsername(first.username)
-      setStoredAddress(first.address)
+    if (list.length === 0) {
+      // nothing to select
+      setActiveWalletId('')
+      setUsername('')
+      setStoredAddress(null)
+      return
     }
+
+    // see if user had a stored selection
+    const saved = await AsyncStorage.getItem(ACTIVE_WALLET_KEY)
+    const match = saved ? list.find(w => w.id === saved) : null
+
+    const chosen = match || list[0]
+    setActiveWalletId(chosen.id)
+    setUsername(chosen.username)
+    setStoredAddress(chosen.address)
   }, [])
 
-  useEffect(() => { fetchUserWallets() }, [fetchUserWallets])
-  useFocusEffect(useCallback(() => { fetchUserWallets() }, [fetchUserWallets]))
+  useEffect(() => {
+    fetchWallets()
+  }, [fetchWallets])
 
-  // 2) Animate dropdown
-  const toggleSwitcher = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
-    setShowSwitcher(v => !v)
+  useFocusEffect(useCallback(() => {
+    fetchWallets()
+  }, [fetchWallets]))
+
+  // — 2) Dropdown open/close animation —
+  const toggleDropdown = () => {
+    if (!dropdownVisible) {
+      setDropdownVisible(true)
+      Animated.timing(dropdownAnim, { toValue:1, duration:200, useNativeDriver:false }).start()
+    } else {
+      Animated.timing(dropdownAnim, { toValue:0, duration:200, useNativeDriver:false })
+        .start(() => setDropdownVisible(false))
+    }
   }
+
   const selectWallet = (id: string) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
-    const w = wallets.find(w => w.id === id)
-    if (!w) return
-    setActiveWalletId(w.id)
-    setUsername(w.username)
-    setStoredAddress(w.address)
-    setShowSwitcher(false)
+    Animated.timing(dropdownAnim, { toValue:0, duration:200, useNativeDriver:false })
+      .start(async () => {
+        const w = wallets.find(w => w.id === id)
+        if (w) {
+          setActiveWalletId(w.id)
+          setUsername(w.username)
+          setStoredAddress(w.address)
+          // persist the choice:
+          await AsyncStorage.setItem(ACTIVE_WALLET_KEY, w.id)
+        }
+        setDropdownVisible(false)
+      })
   }
 
-  // 3) Fetch on-chain balance
+  // — 3) Fetch on‐chain balance —
   const fetchBalance = useCallback(async () => {
     const addr = liveAddress || storedAddress
     if (!addr) {
@@ -126,9 +148,7 @@ export default function Dashboard() {
       return
     }
     try {
-      const raw = await new JsonRpcProvider(
-        'http://192.168.100.129:8546'
-      ).getBalance(addr)
+      const raw = await new JsonRpcProvider('http://192.168.100.129:8546').getBalance(addr)
       setBalance(formatEther(raw))
       setError('')
     } catch {
@@ -136,11 +156,10 @@ export default function Dashboard() {
     }
   }, [liveAddress, storedAddress])
 
-  // 4) Fetch last 5 transactions
-  const fetchTransactions = useCallback(async () => {
+  // — 4) Fetch transactions —
+  const fetchTxns = useCallback(async () => {
     const uid = auth.currentUser?.uid
     if (!uid) return
-
     const snap = await getDocs(
       query(
         collection(db,'transactions'),
@@ -149,8 +168,7 @@ export default function Dashboard() {
         limit(5)
       )
     )
-
-    setTransactionsList(
+    setTransactions(
       snap.docs.map(d => ({
         type:        d.data().type as 'Ethereum'|'Bitcoin',
         description: d.data().description as string,
@@ -159,140 +177,117 @@ export default function Dashboard() {
     )
   }, [])
 
-  useEffect(() => { fetchBalance(); fetchTransactions() }, [fetchBalance, fetchTransactions])
-  useFocusEffect(useCallback(() => { fetchBalance(); fetchTransactions() }, [fetchBalance, fetchTransactions]))
+  useEffect(() => {
+    fetchBalance()
+    fetchTxns()
+  }, [fetchBalance, fetchTxns])
 
-  // Pull-to-refresh
+  useFocusEffect(useCallback(() => {
+    fetchBalance()
+    fetchTxns()
+  }, [fetchBalance, fetchTxns]))
+
+  // — Pull‐to‐refresh —
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
-    await Promise.all([fetchBalance(), fetchTransactions()])
+    await Promise.all([fetchBalance(), fetchTxns()])
     setRefreshing(false)
-  }, [fetchBalance, fetchTransactions])
+  }, [fetchBalance, fetchTxns])
 
-  // Display logic
-  const displayAddress  = liveAddress || storedAddress || 'Not connected'
-  const walletConnected = displayAddress !== 'Not connected'
-  const HEADER_HEIGHT     = 56
-  const headerTotalHeight = insets.top + HEADER_HEIGHT
+  // display data
+  const displayAddr = liveAddress || storedAddress || 'Not connected'
+  const isConnected = displayAddr !== 'Not connected'
+  const HEADER_H   = 56
+  const insetsTop  = insets.top
+  const headerHeight = insetsTop + HEADER_H
 
   const active = wallets.find(w => w.id === activeWalletId)
   const bgIdx  = active?.bgIndex ?? 0
 
-  const sections = [
-    { title: 'Recent transactions', data: transactionsList },
-  ] as { title: string; data: SectionItem[] }[]
+  const dropdownHeight = dropdownAnim.interpolate({
+    inputRange: [0,1],
+    outputRange: [0, MAX_HEIGHT],
+  })
 
   return (
     <SafeAreaView style={styles.container}>
       {/* HEADER */}
-      <View style={[styles.header, { paddingTop:insets.top, height:headerTotalHeight }]}>
+      <View style={[styles.header, { paddingTop: insetsTop, height: headerHeight }]}>
         <Text style={styles.headerTitle}>BlockPay</Text>
       </View>
 
       <SectionList
-        sections={sections}
-        keyExtractor={(_,i)=>i.toString()}
-        stickySectionHeadersEnabled={false}
+        showsVerticalScrollIndicator={false}
+        sections={[{ title: 'Recent transactions', data: transactions }]}
+        keyExtractor={(_,i) => i.toString()}
         contentContainerStyle={{ paddingTop:80, paddingBottom:10 }}
+        stickySectionHeadersEnabled={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            progressViewOffset={headerHeight + 4}
+            tintColor="#3b82f6"
+          />
         }
 
         ListHeaderComponent={() => (
           <>
-            {/* Wallet Tile + Switcher */}
-            <View style={styles.walletTileSection}>
-              <View style={styles.walletTileWrapper}>
+            {/* WalletTile + Switcher */}
+            <View style={styles.tileSection}>
+              <View style={styles.tileWrapper}>
                 <WalletTile
-                  address={displayAddress}
-                  isConnected={walletConnected}
+                  address={displayAddr}
+                  isConnected={isConnected}
                   bgIndex={bgIdx}
                 />
 
-                {wallets.length>1 && (
-                  <TouchableOpacity
-                    style={styles.tileSwitcher}
-                    onPress={toggleSwitcher}
-                  >
-                    <Text style={styles.tileSwitcherText}>
-                      Switch Wallet ▼
-                    </Text>
+                {wallets.length > 1 && (
+                  <TouchableOpacity style={styles.switchBtn} onPress={toggleDropdown}>
+                    <Text style={styles.switchText}>Switch Wallet ▼</Text>
                   </TouchableOpacity>
                 )}
 
-                {showSwitcher && (
-                  <ScrollView
-                    style={styles.tileDropdown}
-                    contentContainerStyle={styles.dropdownContent}
-                  >
-                    {wallets.map(w=>(
-                      <TouchableOpacity
-                        key={w.id}
-                        style={styles.dropdownItem}
-                        onPress={()=>selectWallet(w.id)}
-                      >
-                        <Text style={styles.dropdownText}>
-                          @{w.username}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                {dropdownVisible && (
+                  <Animated.View style={[styles.dropdown, { maxHeight: dropdownHeight }]}>
+                    <ScrollView>
+                      {wallets.map(w => (
+                        <TouchableOpacity key={w.id} style={styles.dropdownItem} onPress={() => selectWallet(w.id)}>
+                          <Text style={styles.dropdownText}>@{w.username}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </Animated.View>
                 )}
               </View>
             </View>
 
             {/* Wallet Info */}
-            <View style={styles.walletInfoSection}>
-              <Text style={styles.walletInfoText}>
-                Wallet:{' '}
-                <Text style={styles.walletInfoValue}>
-                  @{username||'— not set —'}
-                </Text>
+            <View style={styles.infoSection}>
+              <Text style={styles.infoText}>
+                Wallet: <Text style={styles.infoValue}>@{username||'— not set —'}</Text>
               </Text>
-              <Text style={styles.walletInfoText}>
-                Balance:{' '}
-                <Text style={styles.walletInfoValue}>
-                  {error?error:`${balance} ETH`}
-                </Text>
+              <Text style={styles.infoText}>
+                Balance: <Text style={styles.infoValue}>{error ? error : `${balance} ETH`}</Text>
               </Text>
-              <Text style={styles.walletInfoText}>
-                Chain ID:{' '}
-                <Text style={styles.walletInfoValue}>
-                  {selectedNetworkId}
-                </Text>
+              <Text style={styles.infoText}>
+                Chain ID: <Text style={styles.infoValue}>{selectedNetworkId}</Text>
               </Text>
             </View>
 
             {/* Actions */}
-            <View style={styles.actionRow}>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.send]}
-                onPress={()=> rootNavigation.navigate('SendScreen')}
-              >
-                <Text style={styles.actionText}>Send</Text>
+            <View style={styles.actions}>
+              <TouchableOpacity style={[styles.btn, styles.send]} onPress={() => rootNav.navigate('SendScreen')}>
+                <Text style={styles.btnText}>Send</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.btn, styles.receive]} onPress={() => rootNav.navigate('ReceiveScreen')}>
+                <Text style={styles.btnText}>Receive</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.actionButton, styles.receive]}
-                onPress={()=> rootNavigation.navigate('ReceiveScreen')}
+                style={[styles.btn, isConnected ? styles.disconnect : styles.connect]}
+                onPress={() => isConnected ? disconnect() : rootNav.navigate('ConnectWallet')}
               >
-                <Text style={styles.actionText}>Receive</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  walletConnected ? styles.disconnect : styles.connect,
-                ]}
-                onPress={() => {
-                  if (walletConnected) {
-                    disconnect()
-                  } else {
-                    rootNavigation.navigate('ConnectWallet')
-                  }
-                }}
-              >
-                <Text style={styles.actionText}>
-                  {walletConnected ? 'Disconnect' : 'Connect'}
-                </Text>
+                <Text style={styles.btnText}>{isConnected ? 'Disconnect' : 'Connect'}</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -303,28 +298,22 @@ export default function Dashboard() {
             <Text style={styles.sectionTitle}>{section.title}</Text>
           </View>
         )}
+
         renderItem={({ item }) => (
-          <View style={styles.itemRow}>
-            <Image
-              source={require('../assets/ethicon.png')}
-              style={styles.walletIcon}
-            />
-            <View style={{ flex:1 }}>
-              <Text style={styles.fontedText}>{item.type}</Text>
-              <Text style={[styles.fontedText, styles.smallText]}>
-                {'address' in item ? item.address : item.description}
-              </Text>
+          <View style={styles.txnRow}>
+            <Image source={require('../assets/ethicon.png')} style={styles.txnIcon} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.txnText}>{item.type}</Text>
+              <Text style={[styles.txnText, styles.txnSmall]}>{item.description}</Text>
             </View>
             <Text
               style={[
-                styles.fontedText,
-                styles.balanceText,
-                ('amount' in item && item.amount.startsWith('+'))
-                  ? styles.positive
-                  : styles.negative,
+                styles.txnText,
+                styles.txnAmt,
+                item.amount.startsWith('+') ? styles.positive : styles.negative,
               ]}
             >
-              {'amount' in item ? item.amount : ''}
+              {item.amount}
             </Text>
           </View>
         )}
@@ -334,91 +323,60 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
-  container:          { flex:1, backgroundColor:'#f5f5f5' },
-  header:             {
-    position:'absolute', top:0,left:0,right:0,
-    backgroundColor:'#fff', borderBottomWidth:0.5,
-    borderColor:'#ddd', alignItems:'center',
-    justifyContent:'center', zIndex:10
-  },
-  headerTitle:        {
-    fontFamily:'Manrope_700Bold', fontSize:20
-  },
+  container: { flex:1, backgroundColor:'#f5f5f5' },
 
-  walletTileSection:  { alignItems:'center', marginTop:10 },
-  walletTileWrapper:  { width:'90%', alignSelf:'center' },
+  header: {
+    position:'absolute',
+    top:0,left:0,right:0,
+    backgroundColor:'#fff',
+    borderBottomWidth:0.5,
+    borderColor:'#ddd',
+    alignItems:'center',
+    justifyContent:'center',
+    zIndex:10,
+  },
+  headerTitle: { fontFamily:'Manrope_700Bold', fontSize:20 },
 
-  tileSwitcher:       {
-    position:'absolute', top:8, alignSelf:'center',
-    backgroundColor:'#fff', paddingHorizontal:16,
-    paddingVertical:8, borderRadius:20,
-    elevation:6, shadowColor:'#000',
-    shadowOffset:{width:0,height:2},
-    shadowOpacity:0.25, shadowRadius:4,
-    zIndex:10
-  },
-  tileSwitcherText:   {
-    color:'#5392FF', fontSize:16,
-    fontFamily:'Manrope_700Bold'
-  },
+  tileSection: { alignItems:'center', marginBottom:16, shadowColor:'#171717', shadowOffset:{width:1,height:1}, shadowOpacity:0.25, shadowRadius:4 },
+  tileWrapper: { width:'90%', alignSelf:'center' },
 
-  tileDropdown:       {
-    position:'absolute', top:48, alignSelf:'center',
-    backgroundColor:'#fff', borderRadius:12,
-    elevation:4, width:'50%', maxHeight:150,
-    zIndex:10
+  switchBtn: {
+    position:'absolute', top:16, alignSelf:'center',
+    backgroundColor:'#fff', paddingHorizontal:16, paddingVertical:8,
+    borderRadius:20, elevation:4,
+    shadowColor:'#000', shadowOffset:{width:0,height:2},
+    shadowOpacity:0.2, shadowRadius:4, zIndex:10,
   },
-  dropdownContent:    {
-    // ensure items start at top
-    paddingVertical: 4,
-  },
-  dropdownItem:       {
-    paddingVertical:12, paddingHorizontal:16,
-    borderBottomWidth:1, borderColor:'#eee'
-  },
-  dropdownText:       {
-    fontSize:16, color:'#333',
-    fontFamily:'Manrope_500Medium'
-  },
+  switchText: { fontFamily:'Manrope_700Bold', fontSize:14, color:'#5392FF' },
 
-  walletInfoSection:  { alignItems:'center', marginTop:16 },
-  walletInfoText:     {
-    fontFamily:'Manrope_500Medium', fontSize:18, color:'#333'
+  dropdown: {
+    position:'absolute', top:56, alignSelf:'center',
+    width:'60%', backgroundColor:'#fff',
+    borderRadius:12, overflow:'hidden', zIndex:10,
   },
-  walletInfoValue:    {
-    fontFamily:'Manrope_700Bold', fontSize:22, color:'#000'
-  },
+  dropdownItem: { paddingVertical:12, paddingHorizontal:16, borderBottomWidth:1, borderColor:'#eee' },
+  dropdownText: { fontSize:16, fontFamily:'Manrope_700Bold', color:'#333' },
 
-  actionRow:          {
-    flexDirection:'row', justifyContent:'space-between',
-    marginHorizontal:20, marginTop:24, marginBottom:16
-  },
-  actionButton:       {
-    flex:1, paddingVertical:12, borderRadius:24,
-    alignItems:'center', marginHorizontal:4
-  },
-  actionText:         {
-    fontFamily:'Manrope_700Bold', fontSize:16, color:'#fff'
-  },
-  send:               { backgroundColor:'#3b82f6' },
-  receive:            { backgroundColor:'#10b981' },
-  disconnect:         { backgroundColor:'#ff7f7f' },
-  connect:            { backgroundColor:'#22c55e' },
+  infoSection: { alignItems:'center', marginBottom:24 },
+  infoText:    { fontFamily:'Manrope_500Medium', fontSize:18, color:'#333' },
+  infoValue:   { fontFamily:'Manrope_700Bold', fontSize:22, color:'#000' },
 
-  sectionHeader:      { marginHorizontal:20, marginTop:16 },
-  sectionTitle:       {
-    fontFamily:'Manrope_700Bold', fontSize:16, color:'#333'
-  },
+  actions:     { flexDirection:'row', justifyContent:'space-between', marginHorizontal:20 },
+  btn:         { flex:1, paddingVertical:12, borderRadius:24, marginHorizontal:4, alignItems:'center' },
+  btnText:     { fontFamily:'Manrope_700Bold', fontSize:16, color:'#fff' },
+  send:        { backgroundColor:'#3b82f6' },
+  receive:     { backgroundColor:'#10b981' },
+  disconnect:  { backgroundColor:'#ff7f7f' },
+  connect:     { backgroundColor:'#22c55e' },
 
-  itemRow:            {
-    flexDirection:'row', alignItems:'center',
-    paddingVertical:12, marginHorizontal:20,
-    borderBottomWidth:1, borderColor:'#ececec'
-  },
-  walletIcon:         { width:24, height:24, marginRight:12 },
-  fontedText:         { fontFamily:'Manrope_500Medium', color:'#333' },
-  smallText:          { fontSize:12, color:'#888', marginTop:2 },
-  balanceText:        { marginLeft:'auto', fontWeight:'600' },
-  positive:           { color:'#10b981' },
-  negative:           { color:'#ef4444' },
+  sectionHeader:{ marginHorizontal:20, marginBottom:8, marginTop:30 },
+  sectionTitle:{ fontFamily:'Manrope_700Bold', fontSize:16, color:'#333' },
+
+  txnRow:      { flexDirection:'row', alignItems:'center', paddingVertical:12, marginHorizontal:20, borderBottomWidth:1, borderColor:'#ececec' },
+  txnIcon:     { width:24, height:24, marginRight:12 },
+  txnText:     { fontFamily:'Manrope_500Medium', color:'#333' },
+  txnSmall:    { fontSize:12, color:'#888', marginTop:2 },
+  txnAmt:      { marginLeft:'auto', fontWeight:'600' },
+  positive:    { color:'#10b981' },
+  negative:    { color:'#ef4444' },
 })

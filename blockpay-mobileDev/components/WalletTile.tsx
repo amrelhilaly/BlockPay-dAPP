@@ -1,19 +1,22 @@
-import React, {memo} from 'react';
-import { View, Text, StyleSheet, ImageBackground } from 'react-native';
+// components/WalletTile.tsx
+
+import React, { memo } from 'react'
+import { View, Text, StyleSheet, ImageBackground } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 
 export type WalletTileProps = {
-  address:     string;
-  isConnected: boolean;
-  bgIndex?:    number;
-};
+  address:     string
+  isConnected: boolean
+  bgIndex?:    number
+}
 
 const BACKGROUNDS = [
   require('../assets/walletbg.png'),
   require('../assets/walletbg2.png'),
   require('../assets/walletbg3.png'),
   require('../assets/walletbg4.png'),
-];
-const DISCONNECTED_BG = require('../assets/nowalletbg.png');
+]
+const DISCONNECTED_BG = require('../assets/nowalletbg.png')
 
 function WalletTile({
   address,
@@ -22,7 +25,7 @@ function WalletTile({
 }: WalletTileProps) {
   const source = isConnected
     ? BACKGROUNDS[bgIndex % BACKGROUNDS.length]
-    : DISCONNECTED_BG;
+    : DISCONNECTED_BG
 
   return (
     <ImageBackground
@@ -30,49 +33,59 @@ function WalletTile({
       style={styles.card}
       imageStyle={styles.bgImage}
     >
-      <View>
-        <Text style={styles.labelSmall}></Text>
+      {/* bottom fade overlay */}
+      <LinearGradient
+        // vertical: transparent at top → slight dark at bottom
+        start={{ x: 0, y: 0 }}
+        end={{   x: 0, y: 1 }}
+        colors={['transparent', 'rgba(0, 0, 0, 0.2)']}
+        style={styles.gradient}
+      />
+
+      <View style={styles.content}>
         <Text
           style={styles.address}
           numberOfLines={1}
-          ellipsizeMode='middle'
+          ellipsizeMode="middle"
         >
           {address}
         </Text>
       </View>
     </ImageBackground>
-  );
+  )
 }
 
 export default memo(WalletTile)
 
-
 const styles = StyleSheet.create({
   card: {
-    width:         '101%',
+    width:         '100%',       // fill container
     height:        200,
     borderRadius:  16,
     overflow:      'hidden',
-    padding:       5,
     justifyContent:'flex-end',
-    marginLeft: 'auto'
+    marginVertical: 8,
   },
   bgImage: {
     borderRadius: 16,
   },
-  labelSmall: {
-    color:      '#fff',
-    fontSize:   12,
-    fontFamily: 'Manrope',
+  gradient: {
+    position:                'absolute',
+    left:                    0,
+    right:                   0,
+    bottom:                  0,
+    height:                  80,
+    borderBottomLeftRadius:  16,
+    borderBottomRightRadius: 16,
+  },
+  content: {
+    zIndex: 1,      // ensure text is above the gradient
+    paddingHorizontal: 12,
+    paddingBottom:     12,
   },
   address: {
     color:      '#fff',
-    textShadowOffset: { width: 0.3, height: 0.3 },
-    textShadowRadius: 2,
-    textShadowColor: '#7D7D7D',
-    fontSize:   14,
-    marginTop: 5,
+    fontSize:   16,
     fontFamily: 'Manrope',
-    padding: 5,
   },
-});
+})

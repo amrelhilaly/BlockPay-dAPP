@@ -66,6 +66,7 @@ export default function WalletTileDet({
       source={bg}
       style={styles.card}
       imageStyle={styles.bgImage}
+    
     >
       {/* bottom gradient for readability */}
       <LinearGradient

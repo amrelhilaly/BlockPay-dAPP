@@ -17,7 +17,7 @@ import Feather from 'react-native-vector-icons/Feather'
 import { useNavigation, useFocusEffect } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import type { RootStackParamList } from '../navigation/Stack'
-import WalletTileDet from '../components/WalletTile_Det'
+import WalletTileDetVV from '../components/WalletTile_Det'
 import { getAuth } from 'firebase/auth'
 import { db } from '../firebase/firebase'
 import {
@@ -42,6 +42,7 @@ import BlockPayArtifact from '../abi/BlockPay.json'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Camera, CameraView } from 'expo-camera'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import WalletTileDetV from '../components/WalletTile_DetV'
 
 type Props = NativeStackNavigationProp<RootStackParamList, 'SendScreen'>
 
@@ -289,18 +290,16 @@ export default function SendScreen() {
       <View style={styles.tileWrapper}>
         <View style={styles.walletSection}>
           {activeWallet && (
-            <WalletTileDet
+            <WalletTileDetV
               wallet={activeWallet}
-              inEditMode={false}
-              onDelete={() => {}}
             />
           )}
           
           {wallets.length > 1 && (
-            <TouchableOpacity style={styles.switchBtn} onPress={toggleDropdown}>
+              <TouchableOpacity style={styles.switchBtn} onPress={toggleDropdown}>
               <Text style={styles.switchText}>Switch Wallet ▼</Text>
-                  </TouchableOpacity>
-            )}
+              </TouchableOpacity>
+                )}
 
           {dropdownVisible && (
                             <Animated.View style={[styles.dropdown, { maxHeight: dropdownHeight }]}>
@@ -390,7 +389,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  tileWrapper: { width:'90%', alignSelf:'center' },
+  tileWrapper: { width:'100%', alignSelf:'center' },
   switchBtn: {
     position:'absolute', top:16, alignSelf:'center',
     backgroundColor:'#fff', paddingHorizontal:16, paddingVertical:8,
@@ -440,10 +439,10 @@ const styles = StyleSheet.create({
   },
   switcher: {
     position: 'absolute',
-    top: 12,
+    top: 8,
     backgroundColor: '#fff',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 3,
     borderRadius: 20,
     elevation: 3,
     shadowColor: '#000',
@@ -477,10 +476,9 @@ const styles = StyleSheet.create({
     borderColor: '#eee',
   },
   dropdownText: {
-    fontFamily: 'Manrope_500Medium',
+    fontFamily: 'Manrope_700Bold',
     color: '#333',
   },
-
   balanceSection: {
     alignItems: 'center',
     marginTop: 2,

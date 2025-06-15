@@ -20,6 +20,7 @@ import ReceiveScreen       from '../screens/RecieveScreen'
 
 // 1) Root‐stack param list:
 export type RootStackParamList = {
+  Dashboard:     undefined
   Welcome:       undefined
   Signup:        undefined
   Login:         undefined
@@ -89,6 +90,7 @@ export default function StackNavigator() {
     >
       {/* Auth & Onboarding */}
       <Stack.Screen name="Welcome"       component={WelcomeScreen}       />
+      <Stack.Screen name="Dashboard"     component={Dashboard}           />
       <Stack.Screen name="Signup"        component={SignupScreen}        />
       <Stack.Screen name="Login"         component={LoginScreen}         />
       <Stack.Screen name="ConnectWallet" component={ConnectWalletScreen} />

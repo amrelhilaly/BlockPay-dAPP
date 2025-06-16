@@ -17,7 +17,6 @@ import Feather from 'react-native-vector-icons/Feather'
 import { useNavigation, useFocusEffect } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import type { RootStackParamList } from '../navigation/Stack'
-import WalletTileDetVV from '../components/WalletTile_Det'
 import { getAuth } from 'firebase/auth'
 import { db } from '../firebase/firebase'
 import {
@@ -43,6 +42,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Camera, CameraView } from 'expo-camera'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import WalletTileDetV from '../components/WalletTile_DetV'
+import { KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native'
 
 type Props = NativeStackNavigationProp<RootStackParamList, 'SendScreen'>
 
@@ -152,7 +152,7 @@ export default function SendScreen() {
   const fetchBalance = useCallback(async () => {
     const active = wallets.find((w) => w.id === activeId)
     if (!active) {
-      setBalance('0.000')
+      setBalance('0.00')
       return
     }
     try {
@@ -211,7 +211,7 @@ export default function SendScreen() {
       const fromAddress                 = await (await signer).getAddress()
 
       const blockPay = new Contract(
-        '0x77f68AA0a8247f427Da41a12dcD01AA8d10c119c',
+        '0x2aE786bf080C8b12fe527426888A83aF78cd6B5C',
         BlockPayArtifact.abi,
         await signer
       )
@@ -263,56 +263,76 @@ export default function SendScreen() {
 
   // — main render —
   return (
-    <SafeAreaView style={styles.safe}>
-      {/* HEADER */}
-      <View
-        style={[
-          styles.header,
-          { paddingTop: insets.top, height: headerHeight },
-        ]}
+  <SafeAreaView style={styles.safe}>
+    {/* HEADER */}
+    <View
+      style={[
+        styles.header,
+        { paddingTop: insets.top, height: headerHeight },
+      ]}
+    >
+      <TouchableOpacity
+        style={styles.backBtn}
+        onPress={() => navigation.goBack()}
       >
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => navigation.goBack()}
-        >
-          <Feather name="chevron-left" size={24} color="#000" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Send Payment</Text>
-        <View style={{ width: 24, marginRight: 12 }} />
-      </View>
+        <Feather name="chevron-left" size={24} color="#000" />
+      </TouchableOpacity>
+      <Text style={styles.headerTitle}>Send Payment</Text>
+      <View style={{ width: 24, marginRight: 12 }} />
+    </View>
 
+    {/* CONTENT + KEYBOARD AVOIDANCE */}
+    <KeyboardAvoidingView
+       
+       behavior={Platform.OS === 'ios' ? 'position' : 'height'}
+       keyboardVerticalOffset={2}   // ← extra offset
+     >
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
       >
         {/* FROM */}
         <Text style={styles.label}>From:</Text>
-      <View style={styles.tileWrapper}>
-        <View style={styles.walletSection}>
-          {activeWallet && (
-            <WalletTileDetV
-              wallet={activeWallet}
-            />
-          )}
-          
-          {wallets.length > 1 && (
-              <TouchableOpacity style={styles.switchBtn} onPress={toggleDropdown}>
-              <Text style={styles.switchText}>Switch Wallet ▼</Text>
+        <View style={styles.tileWrapper}>
+          <View style={styles.walletSection}>
+            {activeWallet && (
+              <WalletTileDetV wallet={activeWallet} />
+            )}
+            {wallets.length > 1 && (
+              <TouchableOpacity
+                style={styles.switchBtn}
+                onPress={toggleDropdown}
+              >
+                <Text style={styles.switchText}>
+                  Switch Wallet ▼
+                </Text>
               </TouchableOpacity>
-                )}
-
-          {dropdownVisible && (
-                            <Animated.View style={[styles.dropdown, { maxHeight: dropdownHeight }]}>
-                              <ScrollView>
-                                {wallets.map(w => (
-                                  <TouchableOpacity key={w.id} style={styles.dropdownItem} onPress={() => selectWallet(w.id)}>
-                                    <Text style={styles.dropdownText}>@{w.username}</Text>
-                                  </TouchableOpacity>
-                                ))}
-                              </ScrollView>
-                            </Animated.View>
-                          )}
-                          </View>
+            )}
+            {dropdownVisible && (
+              <Animated.View
+                style={[
+                  styles.dropdown,
+                  { maxHeight: dropdownHeight },
+                ]}
+              >
+                <ScrollView>
+                  {wallets.map((w) => (
+                    <TouchableOpacity
+                      key={w.id}
+                      style={styles.dropdownItem}
+                      onPress={() => selectWallet(w.id)}
+                    >
+                      <Text style={styles.dropdownText}>
+                        @{w.username}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </Animated.View>
+            )}
+          </View>
         </View>
 
         {/* BALANCE */}
@@ -376,12 +396,15 @@ export default function SendScreen() {
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.sendTxt}>Send On-Chain</Text>
+            <Text style={styles.sendTxt}>
+              Send On-Chain
+            </Text>
           )}
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
-  )
+    </KeyboardAvoidingView>
+  </SafeAreaView>
+)
 }
 
 const styles = StyleSheet.create({
@@ -499,23 +522,29 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   at: {
-    fontSize: 18,
+    fontSize: 40,
     marginRight: 4,
     color: '#555',
+    fontFamily: 'Manrope_700Bold',
   },
   recipientInput: {
     flex: 1,
     height: 40,
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: '#F2F2F2',
     borderRadius: 20,
+    backgroundColor: '#F2F2F2',
     paddingHorizontal: 12,
+    fontSize: 20,
+    fontFamily: 'Manrope_700Bold',
+    color: '#757575',
   },
   scanBtn: {
     marginLeft: 8,
     padding: 8,
-    backgroundColor: '#eee',
+    backgroundColor: '#F2F2F2',
     borderRadius: 20,
+    
   },
 
   amountRow: {
@@ -524,31 +553,35 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   amountBox: {
-    width: 60,
-    height: 48,
-    backgroundColor: '#f0f0f0',
-    borderTopLeftRadius: 8,
-    borderBottomLeftRadius: 8,
+    width: 170,
+    height: 90,
+    backgroundColor: '#F2F2F2',
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },
   currency: {
     fontFamily: 'Manrope_700Bold',
-    color: '#333',
+    color: '#757575',
+    fontSize: 50,
   },
   amountInput: {
     flex: 1,
-    height: 48,
+    height: 90,
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderTopRightRadius: 8,
-    borderBottomRightRadius: 8,
+    backgroundColor: '#F2F2F2',
+    borderColor: '#F2F2F2',
+    borderTopRightRadius: 20,
+    borderBottomRightRadius: 20,
     paddingHorizontal: 12,
-    fontSize: 16,
-  },
+    fontSize: 50,
+    fontFamily: 'Manrope_700Bold',
+    color: '#757575',
+    textAlign: 'center',},
 
   sendBtn: {
-    backgroundColor: '#10b981',
+    backgroundColor: '#1C8BD1',
     borderRadius: 24,
     height: 48,
     justifyContent: 'center',

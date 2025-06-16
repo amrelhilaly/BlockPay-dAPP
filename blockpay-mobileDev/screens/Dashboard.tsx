@@ -45,7 +45,7 @@ if (Platform.OS === 'android') {
 
 const ACTIVE_WALLET_KEY = 'ACTIVE_WALLET_ID'
 
-type Transaction = { type: 'Ethereum' | 'Bitcoin'; description: string; amount: string }
+type Transaction = { type: 'Ethereum' ; description: string; amount: string }
 type UserWallet  = { id: string; username: string; address: string; bgIndex: number }
 
 const useRootNav = () => useNavigation<NativeStackNavigationProp<RootStackParamList>>()
@@ -170,7 +170,7 @@ export default function Dashboard() {
     )
     setTransactions(
       snap.docs.map(d => ({
-        type:        d.data().type as 'Ethereum'|'Bitcoin',
+        type:        d.data().type as 'Ethereum',
         description: d.data().description as string,
         amount:      d.data().amount as string,
       }))
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontFamily:'Manrope_700Bold', fontSize:20 },
 
-  tileSection: { alignItems:'center', marginBottom:16, shadowColor:'#171717', shadowOffset:{width:1,height:1}, shadowOpacity:0.25, shadowRadius:4 },
+  tileSection: { alignItems:'center', marginBottom:16, shadowColor:'#171717', shadowOffset:{width:1,height:1}, shadowOpacity:0., shadowRadius:4 },
   tileWrapper: { width:'90%', alignSelf:'center' },
 
   switchBtn: {

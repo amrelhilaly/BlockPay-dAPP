@@ -32,6 +32,7 @@ import {
   DocumentData,
 } from 'firebase/firestore'
 import { db } from '../firebase/firebase'
+import Feather from 'react-native-vector-icons/Feather'
 
 type TxDoc = {
   id: string
@@ -185,296 +186,333 @@ const TxHistory: React.FC = () => {
   ])
 
   return (
-    <TouchableWithoutFeedback
-      onPress={() => {
-        if (editingAmount) setEditingAmount(false)
-        Keyboard.dismiss()
-      }}
-    >
-      <View style={styles.container}>
-        {/* HEADER */}
-        <View
-          style={[
-            styles.header,
-            {
-              paddingTop: insets.top,
-              height: HEADER_BASE_HEIGHT + insets.top,
-            },
-          ]}
-        >
-          <Text style={styles.headerTitle}>
-            Transaction History
-          </Text>
-        </View>
+  
+    <View style={styles.container}>
+      {/* APP HEADER */}
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: insets.top,
+            height: HEADER_BASE_HEIGHT + insets.top,
+          },
+        ]}
+      >
+        <Text style={styles.headerTitle}>
+          Transaction History
+        </Text>
+      </View>
 
-        {/* CONTENT */}
-        <View
-          style={{
-            flex: 1,
-            marginTop: HEADER_BASE_HEIGHT + insets.top,
-          }}
-        >
-          {/* FILTERS */}
-          <View style={styles.filterSection}>
-            {/* Row 1: Label + SentFrom + Received */}
-            <View style={styles.filterRow}>
-              <Text style={styles.filterLabel}>Filter:</Text>
-              <TouchableOpacity
-                style={styles.sentButton}
-                onPress={() => {
-                  setShowWalletModal(true)
-                  setReceivedOnly(false)
-                }}
-              >
-                <Text style={styles.ButtonText}>
-                  {selectedWalletId
-                    ? selectedWalletId === 'ALL'
-                      ? 'All'
-                      : wallets.find(w => w.id === selectedWalletId)
-                          ?.username
-                    : 'Sent From'}
-                </Text>
-                <Text style={{ marginLeft: 4 }}>▼</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+      {/* STATIC CONTENT ABOVE LIST */}
+      <View
+        style={{
+          marginTop: HEADER_BASE_HEIGHT + insets.top,
+        }}
+      >
+        {/* FILTERS */}
+        <View style={styles.filterSection}>
+          {/* Row 1 */}
+          <View style={styles.filterRow}>
+            <Text style={styles.filterLabel}>Filter:</Text>
+
+            <TouchableOpacity
+              style={styles.sentButton}
+              onPress={() => {
+                setShowWalletModal(true)
+                setReceivedOnly(false)
+              }}
+            >
+              <Text style={styles.ButtonText}>
+                {selectedWalletId
+                  ? selectedWalletId === 'ALL'
+                    ? 'All'
+                    : wallets.find(
+                        (w) => w.id === selectedWalletId
+                      )?.username
+                  : 'Sent From'}
+              </Text>
+              <Text style={{ marginLeft: 4 }}>▼</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.ReceivedButton,
+                receivedOnly && styles.activeButton,
+              ]}
+              onPress={() =>
+                setReceivedOnly((prev) => {
+                  const next = !prev
+                  if (next) setSelectedWalletId(null)
+                  return next
+                })
+              }
+            >
+              <Text
                 style={[
-                  styles.ReceivedButton,
-                  receivedOnly && styles.activeButton ,
+                  styles.ButtonText,
+                  receivedOnly && styles.activeText,
                 ]}
-                onPress={() =>
-                  setReceivedOnly(prev => {
-                    const next = !prev
-                    if (next) setSelectedWalletId(null)
-                    return next
-                  })
-                }
               >
-                <Text
-                  style={[styles.nonActiveText, receivedOnly && styles.activeText] }
-                >
-                  Received
-                </Text>
-              </TouchableOpacity>
-            </View>
+                Received
+              </Text>
+            </TouchableOpacity>
 
-            {/* Row 2: Date + Amount + Sort */}
-            <View style={styles.secondRow}>
+            {/* Clear‐Filters button */}
+            {(!!selectedWalletId ||
+               
+              !!selectedDate ||
+              !!amountFilter) && (
               <TouchableOpacity
-                style={styles.dateButton}
-                onPress={() => setShowDateModal(true)}
+                style={styles.clearButton}
+                onPress={() => {
+                  setSelectedWalletId(null)
+                  setReceivedOnly(false)
+                  setSelectedDate(null)
+                  setAmountFilter('')
+                }}
+                
               >
-                <Text style={styles.ButtonText}>
-                  {selectedDate
-                    ? selectedDate.toLocaleDateString()
-                    : 'Date'}
-                </Text>
+                <Feather name="x-circle" size={26} color="#DF4C4C" />
               </TouchableOpacity>
-
-              {editingAmount ? (
-                <TextInput
-                  style={[styles.amountButton, { flex: 1 }]}
-                  value={amountFilter}
-                  onChangeText={setAmountFilter}
-                  placeholder="Amount"
-                  keyboardType="numeric"
-                  onBlur={() => setEditingAmount(false)}
-                  onSubmitEditing={() =>
-                    setEditingAmount(false)
-                  }
-                />
-              ) : (
-                <TouchableOpacity
-                  style={[styles.amountButton, ]}
-                  onPress={() => setEditingAmount(true)}
-                >
-                  <Text style={styles.ButtonText}>Amount</Text>
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity
-                style={styles.sortButton}
-                onPress={() => setShowSortModal(true)}
-              >
-                <Text>⇅</Text>
-              </TouchableOpacity>
-            </View>
+            )}
           </View>
 
-          {/* TRANSACTION LIST */}
-          <Text style={styles.sectionTitle}>
-            Transactions:
-          </Text>
-          <FlatList
-            style={styles.list}
-            contentContainerStyle={styles.listContent}
-            data={filteredTxns}
-            keyExtractor={tx => tx.id}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
+          {/* Row 2 */}
+          <View style={styles.secondRow}>
+            <TouchableOpacity
+              style={styles.dateButton}
+              onPress={() => setShowDateModal(true)}
+            >
+              <Text style={styles.ButtonText}>
+                {selectedDate
+                  ? selectedDate.toLocaleDateString()
+                  : 'Date'}
+              </Text>
+            </TouchableOpacity>
+
+            {editingAmount ? (
+              <TextInput
+                style={[styles.amountButton, { flex: 1 }]}
+                value={amountFilter}
+                onChangeText={setAmountFilter}
+                placeholder="Amount"
+                keyboardType="numeric"
+                onBlur={() => setEditingAmount(false)}
+                onSubmitEditing={() =>
+                  setEditingAmount(false)
+                }
               />
-            }
-            renderItem={({ item }) => (
-              <View style={styles.txnRow}>
-                <Image
-                  source={require('../assets/ethicon.png')}
-                  style={styles.txnIcon}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.txnText}>
-                    {item.type}
-                  </Text>
-                  <Text
-                    style={[styles.txnText, styles.txnSmall]}
-                  >
-                    {item.description}
-                  </Text>
-                </View>
-                <Text
-                  style={[
-                    styles.txnText,
-                    styles.txnAmt,
-                    item.amount.startsWith('+')
-                      ? styles.positive
-                      : styles.negative,
-                  ]}
-                >
-                  {item.amount}
+            ) : (
+              <TouchableOpacity
+                style={styles.amountButton}
+                onPress={() => setEditingAmount(true)}
+              >
+                <Text style={styles.ButtonText}>
+                  Amount
                 </Text>
-              </View>
+              </TouchableOpacity>
             )}
-          />
 
-          {/* WALLET DROPDOWN */}
-          <Modal
-            transparent
-            animationType="fade"
-            visible={showWalletModal}
-            onRequestClose={() =>
-              setShowWalletModal(false)
-            }
-          >
-            <TouchableWithoutFeedback
-              onPress={() => setShowWalletModal(false)}
+            <TouchableOpacity
+              style={styles.sortButton}
+              onPress={() => setShowSortModal(true)}
             >
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                  <TouchableOpacity
-                    style={styles.modalItem}
-                    onPress={() => {
-                      setSelectedWalletId('ALL')
-                      setShowWalletModal(false)
-                    }}
-                  >
-                    <Text>All</Text>
-                  </TouchableOpacity>
-                  {wallets.map(w => (
-                    <TouchableOpacity
-                      key={w.id}
-                      style={styles.modalItem}
-                      onPress={() => {
-                        setSelectedWalletId(w.id)
-                        setShowWalletModal(false)
-                      }}
-                    >
-                      <Text>{w.username}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  <TouchableOpacity
-                    style={styles.modalCancel}
-                    onPress={() =>
-                      setShowWalletModal(false)
-                    }
-                  >
-                    <Text>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </Modal>
-
-          {/* SORT DROPDOWN */}
-          <Modal
-            transparent
-            animationType="fade"
-            visible={showSortModal}
-            onRequestClose={() =>
-              setShowSortModal(false)
-            }
-          >
-            <TouchableWithoutFeedback
-              onPress={() => setShowSortModal(false)}
-            >
-              <View style={styles.modalOverlay}>
-                <View style={styles.modalContent}>
-                  <TouchableOpacity
-                    style={styles.modalItem}
-                    onPress={() => {
-                      setSortOrder('newest')
-                      setShowSortModal(false)
-                    }}
-                  >
-                    <Text>Newest → Oldest</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.modalItem}
-                    onPress={() => {
-                      setSortOrder('oldest')
-                      setShowSortModal(false)
-                    }}
-                  >
-                    <Text>Oldest → Newest</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.modalCancel}
-                    onPress={() =>
-                      setShowSortModal(false)
-                    }
-                  >
-                    <Text>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </Modal>
-
-          {/* DATE PICKER MODAL */}
-          <Modal
-            transparent
-            animationType="fade"
-            visible={showDateModal}
-            onRequestClose={() =>
-              setShowDateModal(false)
-            }
-          >
-            <TouchableWithoutFeedback
-              onPress={() => setShowDateModal(false)}
-            >
-              <View style={styles.modalOverlay}>
-                <View style={styles.dateModalContent}>
-                  <DateTimePicker
-                    value={selectedDate || new Date()}
-                    mode="date"
-                    display={
-                      Platform.OS === 'ios'
-                        ? 'inline'
-                        : 'spinner'
-                    }
-                    textColor="black"
-                    onChange={(_, date) => {
-                      setShowDateModal(false)
-                      if (date) setSelectedDate(date)
-                    }}
-                  />
-                </View>
-              </View>
-            </TouchableWithoutFeedback>
-          </Modal>
+              <Text>⇅</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* SECTION TITLE */}
+        <Text style={styles.sectionTitle}>
+          Transactions:
+        </Text>
       </View>
-    </TouchableWithoutFeedback>
-  )
+
+      {/* ONLY THIS SCROLLS */}
+      <FlatList
+        data={filteredTxns}
+        keyExtractor={(tx) => tx.id}
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+          />
+        }
+        renderItem={({ item }) => (
+          <View
+            style={[
+              styles.txnRow,
+              { paddingVertical: 16 },
+            ]}
+          >
+            <Image
+              source={require('../assets/ethicon.png')}
+              style={styles.txnIcon}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.txnText}>
+                {item.type}
+              </Text>
+              <Text
+                style={[
+                  styles.txnText,
+                  styles.txnSmall,
+                ]}
+              >
+                {item.description}
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.txnText,
+                styles.txnAmt,
+                item.amount.startsWith('+')
+                  ? styles.positive
+                  : styles.negative,
+              ]}
+            >
+              {item.amount}
+            </Text>
+          </View>
+        )}
+      />
+
+      {/* DATE PICKER MODAL */}
+      {showDateModal && (
+        <Modal
+          transparent
+          animationType="fade"
+          visible={true}
+          onRequestClose={() =>
+            setShowDateModal(false)
+          }
+        >
+          <TouchableWithoutFeedback
+            onPress={() => setShowDateModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.dateModalContent}>
+                <DateTimePicker
+                  value={selectedDate || new Date()}
+                  mode="date"
+                  display={
+                    Platform.OS === 'ios'
+                      ? 'spinner'
+                      : 'default'
+                  }
+                  onChange={(_, date) => {
+                    setShowDateModal(false)
+                    if (date) setSelectedDate(date)
+                  }}
+                />
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+      )}
+
+      {/* WALLET DROPDOWN MODAL */}
+      {showWalletModal && (
+        <Modal
+          transparent
+          animationType="fade"
+          visible={true}
+          onRequestClose={() =>
+            setShowWalletModal(false)
+          }
+        >
+          <TouchableWithoutFeedback
+            onPress={() => setShowWalletModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <TouchableOpacity
+                  style={styles.modalItem}
+                  onPress={() => {
+                    setSelectedWalletId('ALL')
+                    setShowWalletModal(false)
+                  }}
+                >
+                  <Text>All</Text>
+                </TouchableOpacity>
+                {wallets.map((w) => (
+                  <TouchableOpacity
+                    key={w.id}
+                    style={styles.modalItem}
+                    onPress={() => {
+                      setSelectedWalletId(w.id)
+                      setShowWalletModal(false)
+                    }}
+                  >
+                    <Text>{w.username}</Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity
+                  style={styles.modalCancel}
+                  onPress={() =>
+                    setShowWalletModal(false)
+                  }
+                >
+                  <Text>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+      )}
+
+      {/* SORT DROPDOWN MODAL */}
+      {showSortModal && (
+        <Modal
+          transparent
+          animationType="fade"
+          visible={true}
+          onRequestClose={() =>
+            setShowSortModal(false)
+          }
+        >
+          <TouchableWithoutFeedback
+            onPress={() => setShowSortModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <TouchableOpacity
+                  style={styles.modalItem}
+                  onPress={() => {
+                    setSortOrder('newest')
+                    setShowSortModal(false)
+                  }}
+                >
+                  <Text>Newest → Oldest</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalItem}
+                  onPress={() => {
+                    setSortOrder('oldest')
+                    setShowSortModal(false)
+                  }}
+                >
+                  <Text>Oldest → Newest</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalCancel}
+                  onPress={() =>
+                    setShowSortModal(false)
+                  }
+                >
+                  <Text>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+      )}
+    </View>
+)
+
+
 }
 
 const styles = StyleSheet.create({
@@ -493,6 +531,10 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: 'Manrope_700Bold',
     fontSize: 20,
+  },
+  stickyHeader: {
+    backgroundColor: '#fff',
+    zIndex: 1,
   },
 
   filterSection: {
@@ -595,7 +637,7 @@ const styles = StyleSheet.create({
   },
 
   list: {
-    flex: 1,
+    flex:1,
   },
   listContent: {
     paddingBottom: 20,
@@ -654,6 +696,23 @@ const styles = StyleSheet.create({
   modalCancel: {
     paddingVertical: 12,
     alignItems: 'center',
+  },
+  datePickerInline: {
+    alignSelf: 'center',
+    marginVertical: 10,
+  },
+  clearIcon: {
+    fontSize: 20,
+    color: '#ef4444',
+  
+  },
+  clearButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 20,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 })
 

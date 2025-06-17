@@ -1,118 +1,134 @@
-// WelcomeScreen.tsx
+// screens/SplashScreen.tsx
 
-import React from "react";
+import React, { useEffect, useRef } from 'react'
 import {
   View,
-  Text,
+  Animated,
+  StyleSheet,
   Image,
   TouchableOpacity,
-  StyleSheet,
-} from "react-native";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
+  Text,
+  Dimensions,
+} from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
+import { useNavigation } from '@react-navigation/native'
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
+
 
 type RootStackParamList = {
-  Welcome: undefined;
-  Signup:  undefined;
-  Login:   undefined;
-};
-
-type Props = NativeStackScreenProps<RootStackParamList, "Welcome">;
-
-export default function WelcomeScreen({ navigation }: Props) {
-  return (
-    <View style={styles.container}>
-      {/* Logo */}
-      <View style={styles.logoContainer}>
-        <Image
-          source={require("../assets/blockpay.png")}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-      </View>
-
-      {/* Title & Subtitle */}
-      <Text style={styles.title}>BlockPay</Text>
-      <Text style={styles.subtitle}>Hey there, welcome to BlockPay</Text>
-
-      {/* Buttons */}
-      <View style={styles.buttonGroup}>
-        <TouchableOpacity
-          style={styles.loginButton}
-          onPress={() => navigation.navigate("Login")}
-        >
-          <Text style={styles.loginButtonText}>Log In</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.signupButton}
-          onPress={() => navigation.navigate("Signup")}
-        >
-          <Text style={styles.signupButtonText}>Sign Up</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+  Splash: undefined
+  Login:  undefined
+  Signup: undefined
 }
 
-const BUTTON_RADIUS = 8;
+type Props = NativeStackNavigationProp<RootStackParamList, 'Splash'>
+
+const { width } = Dimensions.get('window')
+const LOGO_SIZE = width * 0.4  // 40% of screen width
+
+export default function SplashScreen({}: {}) {
+  const navigation = useNavigation<Props>()
+
+  const logoOpacity    = useRef(new Animated.Value(0)).current
+  const buttonsOpacity = useRef(new Animated.Value(0)).current
+
+  useEffect(() => {
+    // 1) fade in logo
+    Animated.timing(logoOpacity, {
+      toValue: 1,
+      duration: 1000,
+      useNativeDriver: true,
+    }).start(() => {
+      // 2) then fade in buttons
+      Animated.timing(buttonsOpacity, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }).start()
+    })
+  }, [])
+
+  return (
+    <LinearGradient
+      colors={['#3b82f6', '#7dd3fc']}
+      style={styles.fullscreen}
+    >
+      <View style={styles.centered}>
+        <Animated.Image
+          source={require('../assets/blockpayicon.png')}
+          style={[styles.logo, { opacity: logoOpacity }]}
+          resizeMode="contain"
+        />
+
+        <Animated.View style={[styles.buttonGroup, { opacity: buttonsOpacity }]}>
+          <TouchableOpacity
+            style={[styles.button, styles.loginButton]}
+            onPress={() => navigation.navigate('Login')}
+          >
+            <Text style={[styles.buttonText, styles.loginText]}>
+              Log In
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, styles.signupButton]}
+            onPress={() => navigation.navigate('Signup')}
+          >
+            <Text style={[styles.buttonText, styles.signupText]}>
+              Sign Up
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </LinearGradient>
+  )
+}
+
+const BUTTON_PADDING = 14
+const BUTTON_RADIUS  = 24
 
 const styles = StyleSheet.create({
-  container: {
-    flex:           1,
-    justifyContent: "center",
-    alignItems:     "center",
-    padding:        20,
-    backgroundColor: "#fff",
+  fullscreen: {
+    flex: 1,
   },
-  logoContainer: {
-    width:           120,
-    height:          120,
-    borderRadius:    60,
-    backgroundColor: "#f0f0f0",
-    justifyContent:  "center",
-    alignItems:      "center",
-    marginBottom:    32,
+  centered: {
+    flex:           1,
+    justifyContent: 'center',
+    alignItems:     'center',
   },
   logo: {
-    width:  80,
-    height: 80,
-  },
-  title: {
-    fontSize:   28,
-    fontWeight: "bold",
-    marginBottom: 8,
-    textAlign:    "center",
-  },
-  subtitle: {
-    fontSize:   16,
-    color:      "#555",
-    marginBottom: 40,
-    textAlign:    "center",
+    width:        LOGO_SIZE,
+    height:       LOGO_SIZE,
+    marginBottom: 48,
+    borderRadius: LOGO_SIZE / 2,
   },
   buttonGroup: {
-    width: "100%",
+    width:      '100%',
+    alignItems: 'center',
   },
+  button: {
+    width:           '70%',
+    paddingVertical: BUTTON_PADDING,
+    borderRadius:    BUTTON_RADIUS,
+    alignItems:      'center',
+    marginVertical:  8,
+  },
+  buttonText: {
+    fontFamily: 'Manrope_700Bold',
+    fontSize:   16,
+  },
+  // Log In style
   loginButton: {
-    backgroundColor: "#2979FF",
-    paddingVertical: 14,
-    borderRadius:    BUTTON_RADIUS,
-    alignItems:      "center",
-    marginBottom:    12,
+    backgroundColor: '#fff',
   },
-  loginButtonText: {
-    color:     "#fff",
-    fontSize:  16,
-    fontWeight: "600",
+  loginText: {
+    color: '#3b82f6',
   },
+  // Sign Up style
   signupButton: {
-    backgroundColor: "#F2F3F5",
-    paddingVertical: 14,
-    borderRadius:    BUTTON_RADIUS,
-    alignItems:      "center",
+    backgroundColor: 'rgba(255,255,255,0.4)',
   },
-  signupButtonText: {
-    color:     "#333",
-    fontSize:  16,
-    fontWeight: "600",
+  signupText: {
+    color: '#fff',
   },
-});
+})

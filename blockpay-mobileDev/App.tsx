@@ -32,7 +32,7 @@ import "@walletconnect/react-native-compat"; // WalletConnect RN compat
 // 3) Font loading
 import React from "react";
 import AppLoading from 'expo-app-loading';
-import { useFonts, Manrope_500Medium, Manrope_700Bold } from '@expo-google-fonts/manrope';
+import { useFonts, Manrope_500Medium, Manrope_700Bold, Manrope_800ExtraBold } from '@expo-google-fonts/manrope';
 
 // 4) Other imports
 import { LogBox } from "react-native";
@@ -74,7 +74,7 @@ createAppKit({
 // 7) The App component
 export default function App() {
   // Load custom fonts
-  const [fontsLoaded] = useFonts({ Manrope_500Medium, Manrope_700Bold });
+  const [fontsLoaded] = useFonts({ Manrope_500Medium, Manrope_700Bold, Manrope_800ExtraBold });
   if (!fontsLoaded) {
     return <AppLoading />;
   }

@@ -28,6 +28,7 @@ export type RootStackParamList = {
   MainTabs:      undefined
   SendScreen:    undefined
   ReceiveScreen: undefined
+  Profile: undefined
 }
 
 const Stack = createNativeStackNavigator<RootStackParamList>()

@@ -1,0 +1,16 @@
+# Use a slim, up-to-date Python base
+FROM python:3.10-slim
+
+# Set working directory
+WORKDIR /app
+
+# Copy & install Python dependencies
+COPY requirements.txt .
+RUN pip install --upgrade pip \
+ && pip install --no-cache-dir -r requirements.txt
+
+# Copy in your Layer-2 code
+COPY . .
+
+# Launch both the Flask node and the relayer
+CMD ["bash", "-lc", "python node.py & python relayer.py"]

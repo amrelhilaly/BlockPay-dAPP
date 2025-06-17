@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  layer2:
+    build: ./infra/layer2
+    network_mode: "host"
+    environment:
+      - L1_WS=ws://192.168.100.129:8546
+      - BATCH_SIZE=10
+      - NODE_PORT=5000
+    # no published ports → keeps this service invisible to your mobile app

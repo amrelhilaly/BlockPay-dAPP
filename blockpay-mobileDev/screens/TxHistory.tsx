@@ -40,6 +40,10 @@ type TxDoc = {
   description: string
   amount: string
   timestamp: Date
+  from: string
+  to: string
+  fromUsername: string
+  toUsername: string
 }
 
 type Wallet = {
@@ -75,6 +79,16 @@ const TxHistory: React.FC = () => {
   const fetchTxns = useCallback(async () => {
     const uid = auth.currentUser?.uid
     if (!uid) return
+    // 1) pull down all of this user’s wallets so we can map address→username
+    const walletSnap = await getDocs(
+      query(collection(db, 'wallets'), where('uid', '==', uid))
+    )
+    const addrToUser: Record<string,string> = {}
+    walletSnap.docs.forEach(d => {
+      const { address, username } = d.data() as DocumentData
+      addrToUser[address] = username
+    })
+
     const snap = await getDocs(
       query(
         collection(db, 'transactions'),
@@ -82,15 +96,22 @@ const TxHistory: React.FC = () => {
         orderBy('timestamp', 'desc'),
       )
     )
-    const docs = snap.docs.map(
-      (d: QueryDocumentSnapshot<DocumentData>) => ({
-        id: d.id,
-        type: d.data().type as string,
-        description: d.data().description as string,
-        amount: d.data().amount as string,
-        timestamp: (d.data().timestamp as any).toDate() as Date,
-      })
-    )
+    const docs = snap.docs.map((d: QueryDocumentSnapshot<DocumentData>) => {
+      const data = d.data()
+      const fromAddr = data.from as string
+      const toAddr   = data.to   as string
+      return {
+        id:           d.id,
+        type:         data.type        as string,
+        description:  data.description as string,
+        amount:       data.amount      as string,
+        timestamp:    (data.timestamp  as any).toDate() as Date,
+        from:         fromAddr,
+        to:           toAddr,
+        fromUsername: addrToUser[fromAddr] ?? fromAddr,
+        toUsername:   addrToUser[toAddr]   ?? toAddr,
+      }
+    })
     setRawTxns(docs)
   }, [auth.currentUser])
 

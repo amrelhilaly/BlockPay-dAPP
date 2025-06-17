@@ -193,57 +193,75 @@ async function authenticateUser(password: string) {
 
   // 3) Send logic
   const handleSend = async () => {
-    const name = receiverUsername.trim()
-    if (!name) {
-      return Alert.alert(
-        'Invalid username',
-        'Please enter or scan a username.'
-      )
-    }
-    let value
-    try {
-      value = parseEther(amountEth)
-    } catch {
-      return Alert.alert(
-        'Invalid amount',
-        'Enter a number greater than 0.'
-      )
-    }
-
-    setLoading(true)
-    try {
-      // lookup recipient
-      const walletsRef = collection(db, 'wallets')
-      const qs = await getDocs(
-        query(walletsRef, where('username', '==', name))
-      )
-      if (qs.empty) throw new Error(`No user "${name}"`)
-      const data = qs.docs[0].data()
-      const toAddr = data.address as string
-
-      // on-chain send
-      const provider = new JsonRpcProvider(
-        'http://192.168.100.129:8546'
-      )
-      const signer = provider.getSigner()
-      const fromAddress                 = await (await signer).getAddress()
-
-      const blockPay = new Contract(
-        '0x2aE786bf080C8b12fe527426888A83aF78cd6B5C',
-        BlockPayArtifact.abi,
-        await signer
-      )
-      const tx = await blockPay.sendPayment(toAddr, { value })
-      const receipt = await tx.wait()
-      Alert.alert('Confirmed', `✅ Sent ${amountEth} ETH\nfrom ${fromAddress}\nto ${toAddr}\nin block ${receipt.blockNumber}`)
-
-      // (optional) log txns…
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Oops')
-    } finally {
-      setLoading(false)
-    }
+  const name = receiverUsername.trim()
+  if (!name) {
+    return Alert.alert(
+      'Invalid username',
+      'Please enter or scan a username.'
+    )
   }
+  let value
+  try {
+    value = parseEther(amountEth)
+  } catch {
+    return Alert.alert(
+      'Invalid amount',
+      'Enter a number greater than 0.'
+    )
+  }
+
+  setLoading(true)
+  try {
+    // lookup recipient
+    const walletsRef = collection(db, 'wallets')
+    const qs = await getDocs(
+      query(walletsRef, where('username', '==', name))
+    )
+    if (qs.empty) throw new Error(`No user "${name}"`)
+    const data = qs.docs[0].data()
+    const toAddr = data.address as string
+
+    // on-chain send
+    const provider = new JsonRpcProvider(
+      'http://192.168.100.129:8546'
+    )
+    const signer = provider.getSigner()
+    const fromAddress = await (await signer).getAddress()
+
+    const blockPay = new Contract(
+      '0x2aE786bf080C8b12fe527426888A83aF78cd6B5C',
+      BlockPayArtifact.abi,
+      await signer
+    )
+    const tx = await blockPay.sendPayment(toAddr, { value })
+    const receipt = await tx.wait()
+
+    // ← NEW: persist to Firestore
+    const uid = auth.currentUser?.uid
+if (uid) {
+  await addDoc(collection(db, 'transactions'), {
+    uid,
+    type: 'Ethereum',
+    description: `Sent to @${name}`,
+    amount: `-${amountEth} ETH`,
+    timestamp: serverTimestamp(),
+    from: fromAddress,
+    to: toAddr
+  }
+)
+}
+  console.log('Transaction logged:', { from: fromAddress, to: toAddr, amount: amountEth, blockNumber: receipt.blockNumber } )
+
+    Alert.alert(
+      'Confirmed',
+      `✅ Sent ${amountEth} ETH\nfrom ${fromAddress}\nto ${toAddr}\nin block ${receipt.blockNumber}`
+    )
+  } catch (err: any) {
+    Alert.alert('Error', err.message || 'Oops')
+  } finally {
+    setLoading(false)
+  }
+}
 
   const activeWallet = wallets.find((w) => w.id === activeId)
 
@@ -387,7 +405,7 @@ async function authenticateUser(password: string) {
                 )
             }}
           >
-            <Feather name="camera" size={20} color="#333" />
+            <Feather name="camera" size={20} color="#757575" />
           </TouchableOpacity>
         </View>
 

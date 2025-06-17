@@ -11,13 +11,18 @@ import {
   FlatList,
   ActivityIndicator,
   Alert,
-  Animated
+  Animated,
+  Modal
 } from 'react-native'
 import Feather from 'react-native-vector-icons/Feather'
 import { useNavigation, useFocusEffect } from '@react-navigation/native'
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
 import type { RootStackParamList } from '../navigation/Stack'
 import { getAuth } from 'firebase/auth'
+import {
+  EmailAuthProvider,
+  reauthenticateWithCredential
+} from 'firebase/auth'
 import { db } from '../firebase/firebase'
 import {
   collection,
@@ -98,6 +103,19 @@ export default function SendScreen() {
 
   // — on-chain balance —
   const [balance, setBalance] = useState('0.0')
+
+  const auth = getAuth()
+const [showPwModal, setShowPwModal] = useState(false)
+const [passwordInput, setPasswordInput] = useState('')
+
+// helper to re‐authenticate
+async function authenticateUser(password: string) {
+  const user = auth.currentUser!
+  const cred = EmailAuthProvider.credential(user.email!, password)
+  await reauthenticateWithCredential(user, cred)
+}
+
+
 
   // 0) Request camera permission once
   useEffect(() => {
@@ -283,7 +301,7 @@ export default function SendScreen() {
 
     {/* CONTENT + KEYBOARD AVOIDANCE */}
     <KeyboardAvoidingView
-       
+       enabled={!showPwModal}  
        behavior={Platform.OS === 'ios' ? 'position' : 'height'}
        keyboardVerticalOffset={2}   // ← extra offset
      >
@@ -390,7 +408,7 @@ export default function SendScreen() {
         {/* SEND BUTTON */}
         <TouchableOpacity
           style={styles.sendBtn}
-          onPress={handleSend}
+          onPress={ () => setShowPwModal(true) }
           disabled={loading}
         >
           {loading ? (
@@ -403,11 +421,123 @@ export default function SendScreen() {
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
+    <Modal
+  transparent
+  animationType="fade"
+  visible={showPwModal}
+  onRequestClose={() => setShowPwModal(false)}
+>
+  <TouchableWithoutFeedback onPress={() => setShowPwModal(false)}>
+    <View style={styles.modalOverlay}/>
+  </TouchableWithoutFeedback>
+
+  <View style={styles.pwModalContent}>
+    <Text style={styles.pwTitle}>Confirm Password</Text>
+    <TextInput
+      style={styles.pwInput}
+      placeholder="Enter your password"
+      placeholderTextColor={styles.pwInputText.color}
+      secureTextEntry
+      value={passwordInput}
+      onChangeText={setPasswordInput}
+    />
+    <View style={styles.pwBtnsRow}>
+      <TouchableOpacity
+        style={[styles.pwBtn, styles.pwCancel]}
+        onPress={() => {
+          setShowPwModal(false)
+          setPasswordInput('')
+        }}
+      >
+        <Text style={styles.cancelBtnText}>Cancel</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.pwBtn, styles.pwConfirm]}
+        onPress={async () => {
+          try {
+            setLoading(true)
+            await authenticateUser(passwordInput)
+            setShowPwModal(false)
+            setPasswordInput('')
+            await handleSend()
+          } catch {
+            Alert.alert('Authentication failed','Wrong password.')
+          } finally {
+            setLoading(false)
+          }
+        }}
+      >
+        <Text style={styles.pwBtnText}>Confirm</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+</Modal>
   </SafeAreaView>
 )
 }
 
 const styles = StyleSheet.create({
+  modalOverlay: {
+  flex: 1,
+  backgroundColor: 'rgba(0,0,0,0.4)',
+  opacity: 0.8,
+},
+pwModalContent: {
+  position: 'absolute',
+  top: '30%',
+  left: '10%',
+  right: '10%',
+  backgroundColor: '#fff',
+  borderRadius: 20,
+  padding: 20,
+  elevation: 5,
+},
+pwTitle: {
+  fontFamily: 'Manrope_700Bold',
+  fontSize: 18,
+  marginBottom: 12,
+  textAlign: 'center',
+},
+pwInput: {
+  borderWidth: 1,
+  borderColor: '#F2F2F2',
+  backgroundColor: '#F2F2F2',
+  borderRadius: 20,
+  paddingHorizontal: 12,
+  paddingVertical: 8,
+  fontSize: 16,
+  
+  marginBottom: 20,
+},
+pwInputText: {
+  color: '#333',
+},
+pwBtnsRow: {
+  flexDirection: 'row',
+  justifyContent: 'flex-end',
+},
+pwBtn: {
+  paddingVertical: 8,
+  paddingHorizontal: 16,
+  borderRadius: 6,
+  marginLeft: 12,
+},
+pwCancel: {
+  backgroundColor: '#f3f4f6',
+},
+pwConfirm: {
+  backgroundColor: '#3b82f6',
+},
+cancelBtnText: {
+  fontSize: 16,
+  color: '#000',
+  fontFamily: 'Manrope_700Bold',
+},
+pwBtnText: {
+  fontSize: 16,
+  color: '#fff',
+  fontFamily: 'Manrope_700Bold',
+},
   safe: {
     flex: 1,
     backgroundColor: '#fff',

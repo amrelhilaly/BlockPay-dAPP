@@ -8,13 +8,14 @@ import {
   TouchableOpacity,
   FlatList,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { getAuth } from 'firebase/auth';
 import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import WalletTileDet from '../components/WalletTile_Det';
-
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 type Wallet = {
   id: string;
   username: string;
@@ -26,6 +27,8 @@ export default function ManageWallets() {
   const nav = useNavigation();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [editMode, setEditMode] = useState(false);
+  const insets = useSafeAreaInsets()
+  const HEADER_BASE_HEIGHT = 56
 
   useEffect(() => {
     (async () => {
@@ -76,9 +79,18 @@ export default function ManageWallets() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Top Bar */}
-      <View style={styles.topbar}>
-        <Text style={styles.topbarTitle}>Manage Wallets</Text>
+           <View
+        style={[
+          styles.header,
+          {
+            paddingTop: insets.top,
+            height: HEADER_BASE_HEIGHT + insets.top,
+          },
+        ]}
+      >
+        <Text style={styles.headerTitle}>
+          Manage Wallets
+        </Text>
       </View>
 
       {/* Section Header */}
@@ -106,11 +118,24 @@ export default function ManageWallets() {
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
         <View style={styles.itemWrapper}>
-          <WalletTileDet
-            wallet={item}
-            inEditMode={editMode}
-            onDelete={handleDelete}
-          />
+           <WalletTileDet
+             wallet={item}
+             inEditMode={editMode}
+             onDelete={() =>
+               Alert.alert(
+                 'Delete Wallet',
+                 'Are you sure you want to delete this wallet?',
+                 [
+                   { text: 'Cancel', style: 'cancel' },
+                   {
+                     text: 'Delete',
+                     style: 'destructive',
+                     onPress: () => handleDelete(item.id),
+                   },
+                 ]
+               )
+             }
+           />
           </View>
         )}
         ListEmptyComponent={
@@ -126,39 +151,48 @@ export default function ManageWallets() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f7f7f7' },
-  topbar: {
-    height: 56,
-    justifyContent: 'center',
-    alignItems: 'center',
+   header: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
     backgroundColor: '#fff',
-    elevation: 2,
-    
+    borderBottomWidth: 0.5,
+    borderColor: '#ddd',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
-  topbarTitle: { fontSize: 20, fontWeight: '600' },
+  headerTitle: {
+    fontFamily: 'Manrope_700Bold',
+    fontSize: 20,
+  },
   section: {
+    marginTop: 56, // space for header
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
     backgroundColor: '#fff',
   },
-  sectionTitle: { fontSize: 16, fontWeight: '500' },
-  buttons: { flexDirection: 'row', marginLeft: 'auto' },
+  sectionTitle: { fontSize: 26, fontFamily: 'Manrope_700Bold' },
+  buttons: { flexDirection: 'row', marginLeft: 'auto', borderRadius: 20 },
   actionBtn: {
     marginLeft: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
     backgroundColor: '#e0e0e0',
-    borderRadius: 10,
+    borderRadius: 20,
   },
   actionText: { fontSize: 16, fontWeight: '600' },
   list: {
-    alignItems: 'center',
-    paddingTop: 20,
-    paddingBottom: 80,
+
+    alignItems: 'stretch',
+    paddingTop: 10,
+    paddingBottom: 50,
   },
   itemWrapper: {
-    width: '95%',
+    width: '92%',
     alignSelf: 'center',
+    overflow: 'hidden',
+    borderRadius: 12
   },
   empty: {
     marginTop: 40,

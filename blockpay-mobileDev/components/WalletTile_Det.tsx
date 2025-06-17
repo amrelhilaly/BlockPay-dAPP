@@ -63,11 +63,11 @@ export default function WalletTileDet({
 
   return (
     <ImageBackground
-      source={bg}
-      style={styles.card}
-      imageStyle={styles.bgImage}
-    
-    >
+     source={bg}
+     style={styles.card}
+     imageStyle={styles.bgImage}
+     resizeMode="cover"            // ← ensure the image completely covers the card
+   >
       {/* bottom gradient for readability */}
       <LinearGradient
         colors={['transparent','rgba(0,0,0,0.4)']}
@@ -95,18 +95,19 @@ export default function WalletTileDet({
 }
 
 const styles = StyleSheet.create({
-  card: {
-    width:         '100%',
-    height:        200,
-    borderRadius:  16,
-    overflow:      'hidden',
-    marginBottom:  16,
+   card: {
+    width:        '100%',
+    aspectRatio:  16 / 9,     // ← pick the ratio that matches your BG images
+    borderRadius: 16,
+    overflow:     'hidden',
+    marginBottom: 16,
     justifyContent:'flex-end',
-    padding:       12,
-    // backgroundColor: no longer needed
+    padding:      12,
   },
   bgImage: {
     borderRadius: 16,
+    width: '110%',
+    height: '115%'
   },
   gradient: {
     position:                'absolute',

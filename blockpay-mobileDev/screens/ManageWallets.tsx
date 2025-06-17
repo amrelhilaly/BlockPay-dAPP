@@ -16,6 +16,7 @@ import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/fire
 import { db } from '../firebase/firebase';
 import WalletTileDet from '../components/WalletTile_Det';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Feather from 'react-native-vector-icons/Feather';
 type Wallet = {
   id: string;
   username: string;
@@ -80,13 +81,12 @@ export default function ManageWallets() {
   return (
     <SafeAreaView style={styles.container}>
            <View
-        style={[
-          styles.header,
+            style={[styles.header,
           {
             paddingTop: insets.top,
             height: HEADER_BASE_HEIGHT + insets.top,
           },
-        ]}
+        ]} 
       >
         <Text style={styles.headerTitle}>
           Manage Wallets
@@ -160,6 +160,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
+  },
+   backBtn: {
+    marginRight: 12,
   },
   headerTitle: {
     fontFamily: 'Manrope_700Bold',

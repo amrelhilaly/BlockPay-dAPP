@@ -89,15 +89,15 @@ export default function ReceiveScreen() {
     outputRange: [0, MAX_DROPDOWN_HEIGHT],
   })
 
-  if (!isConnected) {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.centered}>
-          <Text>Please connect to receive funds.</Text>
-        </View>
-      </SafeAreaView>
-    )
-  }
+  // if (!isConnected) {
+  //   return (
+  //     <SafeAreaView style={styles.safe}>
+  //       <View style={styles.centered}>
+  //         <Text>Please connect to receive funds.</Text>
+  //       </View>
+  //     </SafeAreaView>
+  //   )
+  // }
 
   if (loading) {
     return (

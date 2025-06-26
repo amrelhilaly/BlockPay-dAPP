@@ -229,7 +229,7 @@ async function authenticateUser(password: string) {
     const fromAddress = await (await signer).getAddress()
 
     const blockPay = new Contract(
-      '0x2aE786bf080C8b12fe527426888A83aF78cd6B5C',
+      '0x5B1259E016527E82F02Fd0e9d4A90267C9A971A3',
       BlockPayArtifact.abi,
       await signer
     )
